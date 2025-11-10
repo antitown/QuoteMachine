@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test File Upload</title>
+</head>
+<body>
+    <h1>Test Upload</h1>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <label>
+        <input type="checkbox" id="livePricing">
+        Use live pricing
+    </label>
+    <button onclick="testUpload()">Test Upload</button>
+    <pre id="result"></pre>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script>
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const livePricing = document.getElementById('livePricing');
+            const resultEl = document.getElementById('result');
+            
+            if (!fileInput.files[0]) {
+                resultEl.textContent = 'Please select a file';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('refreshPricing', livePricing.checked);
+
+            try {
+                resultEl.textContent = 'Uploading...';
+                const response = await axios.post('/api/process', formData);
+                resultEl.textContent = JSON.stringify(response.data, null, 2);
+            } catch (error) {
+                resultEl.textContent = 'Error: ' + error.message + '\n\n' + JSON.stringify(error.response?.data, null, 2);
+            }
+        }
+    </script>
+</body>
+</html>
