@@ -541,7 +541,7 @@ app.get('/', (c) => {
                         <div id="fileName" class="mt-4 text-sm text-gray-600 hidden"></div>
                         
                         <div class="mt-4 flex items-center">
-                            <input type="checkbox" id="livepricing" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                            <input type="checkbox" id="livePricing" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
                             <label for="livePricing" class="ml-2 text-sm text-gray-700">
                                 Use live pricing (refresh prices from AWS and Huawei Cloud APIs)
                             </label>
