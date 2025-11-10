@@ -12,8 +12,9 @@
 
 ## URLs
 - **Local Development**: http://localhost:3000
-- **Production**: (To be deployed)
-- **GitHub**: (To be configured)
+- **Public Sandbox URL**: https://3000-i683g7rhnhlxqak3cgrzf-2b54fc91.sandbox.novita.ai
+- **Production**: (Ready for Cloudflare Pages deployment)
+- **GitHub**: (Ready to push)
 
 ## Data Architecture
 - **Data Models**: 
@@ -112,14 +113,19 @@ curl -X POST http://localhost:3000/api/process -F "file=@aws_instances.xlsx"
 
 ## Deployment
 - **Platform**: Cloudflare Pages
-- **Status**: ⏳ Ready for deployment
+- **Status**: ✅ Running in sandbox environment
 - **Tech Stack**: 
   - Hono (Backend framework)
   - TypeScript
   - SheetJS (xlsx) - Excel parsing
   - TailwindCSS (Frontend styling)
   - Axios (HTTP client)
+  - PM2 (Process manager)
 - **Last Updated**: 2025-11-10
+
+## Sample Files
+- **AWS_Sample.xlsx**: Sample Excel file with AWS EC2 instances (included in project)
+- **create_sample.cjs**: Script to generate sample Excel files
 
 ## Future Enhancements
 - [ ] Add more AWS instance types (G, P, I series)
