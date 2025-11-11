@@ -22,7 +22,7 @@
 
 ## Data Architecture
 - **Data Models**: 
-  - EC2Instance: AWS instance specifications (type, count, region, OS, storage)
+  - EC2Instance: AWS instance specifications (name, type, region, OS, storage)
   - HuaweiQuotation: Mapped Huawei Cloud instance with detailed pricing
   - QuotationLineItem: Individual SKU line items (compute and storage separated)
 - **Storage Services**: 
@@ -41,12 +41,14 @@
 
 ## Excel File Format
 
+**Important**: Use one row per instance with unique instance names. The Count column is no longer used.
+
 The Excel file should contain the following columns:
 
 | Column Name | Description | Example |
 |------------|-------------|---------|
+| Instance Name | Unique name for the instance | web-server-01, db-server-02 |
 | Instance Type | AWS EC2 instance type | t2.micro, m5.large, c5.xlarge |
-| Count | Number of instances | 2, 5, 10 |
 | Region | AWS region | us-east-1, ap-southeast-1 |
 | OS | Operating system | Linux, Windows |
 | Storage | Storage size in GB | 100, 500 |
@@ -54,12 +56,18 @@ The Excel file should contain the following columns:
 
 ### Sample Excel Data
 
+**Note**: Each row represents one instance with a unique name.
+
 ```
-Instance Type | Count | Region       | OS      | Storage | Storage Type
-t2.micro      | 2     | us-east-1    | Linux   | 100     | SSD
-m5.xlarge     | 1     | us-west-2    | Windows | 500     | SSD
-c5.2xlarge    | 3     | ap-southeast-1| Linux   | 200     | SSD
-r5.large      | 2     | eu-west-1    | Linux   | 300     | SSD
+Instance Name  | Instance Type | Region         | OS      | Storage | Storage Type
+web-server-01  | t2.micro      | us-east-1      | Linux   | 100     | SSD
+web-server-02  | t2.micro      | us-east-1      | Linux   | 100     | SSD
+app-server-01  | m5.xlarge     | us-west-2      | Windows | 500     | SSD
+api-server-01  | c5.2xlarge    | ap-southeast-1 | Linux   | 200     | SSD
+api-server-02  | c5.2xlarge    | ap-southeast-1 | Linux   | 200     | SSD
+api-server-03  | c5.2xlarge    | ap-southeast-1 | Linux   | 200     | SSD
+db-server-01   | r5.large      | eu-west-1      | Linux   | 300     | SSD
+db-server-02   | r5.large      | eu-west-1      | Linux   | 300     | SSD
 ```
 
 ## Supported AWS Instance Types
