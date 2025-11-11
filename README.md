@@ -289,9 +289,38 @@ curl -X POST http://localhost:3000/api/process -F "file=@aws_instances.xlsx" -F 
 - `POST /api/pricing/refresh` - Manually refresh pricing from APIs
 - `POST /api/process` - Process Excel file and generate quotation
 
+## Huawei Cloud API Integration
+
+### Authentication
+The application uses **SDK-HMAC-SHA256** signature algorithm for Huawei Cloud BSS API authentication:
+- **Access Key (AK)**: HPUAJD0HGGJTMY29QRWH
+- **Secret Key (SK)**: xoCcwDv7gkk6HjKvh9BL7kbsOBHnG2Ba6UFyEco3
+- **Project ID**: 05602429108026242f3ec01e93f02298
+- **Account Reference**: APClouddemoHK
+- **API Endpoint**: https://bss-intl.myhuaweicloud.com
+- **Default Region**: ap-southeast-1
+
+### Pricing Refresh Workflow
+1. **Manual Trigger**: User clicks "Refresh Pricing" button in the web interface
+2. **API Calls**: Backend makes real Huawei Cloud BSS API calls for each instance type
+3. **Cache Update**: Live pricing data updates the in-memory cache
+4. **Fast Quotations**: Subsequent quotation generation uses cached data for speed
+
+### Instance Mapping Indicators
+The quotation includes visual indicators for mapping quality:
+- **✓ Exact Match**: AWS instance has direct equivalent in Huawei Cloud (e.g., t3.micro → s6.small.1)
+- **⚠️ Best Match**: AWS instance not in mapping dictionary, uses generic equivalent (c6.2xlarge.2)
+
+### API Test Endpoint
+Test the Huawei Cloud API integration:
+```bash
+curl http://localhost:3000/api/test-huawei
+```
+
 ## Future Enhancements
+- [x] ~~Real Huawei Cloud Pricing API integration~~ ✅ **COMPLETED**
 - [ ] Real AWS Pricing API integration (currently simulated)
-- [ ] Real Huawei Cloud Pricing API integration (currently simulated)
+- [ ] Expand AWS to Huawei instance mapping dictionary
 - [ ] Add more AWS instance types (G, P, I series)
 - [ ] Support for RDS, ELB, and other AWS services
 - [ ] Multiple region pricing comparison

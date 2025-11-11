@@ -89,9 +89,9 @@ const awsPricingData: Record<string, number> = {
 // Huawei Cloud API Configuration
 const HUAWEI_CLOUD_CONFIG = {
   // Use environment variables for production, fallback to provided credentials for testing
-  accessKey: process.env.HUAWEI_ACCESS_KEY || 'HPUADCBHYMD0KHPE2UDE',
-  secretKey: process.env.HUAWEI_SECRET_KEY || '7NBq5VdbazzSxacQEMzvrjDc3P0Jw1hLA0B5i8fb',
-  projectId: process.env.HUAWEI_PROJECT_ID || '06488a1de1804f45832f55c016b0e337d7', // Default Singapore project
+  accessKey: process.env.HUAWEI_ACCESS_KEY || 'HPUAJD0HGGJTMY29QRWH',
+  secretKey: process.env.HUAWEI_SECRET_KEY || 'xoCcwDv7gkk6HjKvh9BL7kbsOBHnG2Ba6UFyEco3',
+  projectId: process.env.HUAWEI_PROJECT_ID || '05602429108026242f3ec01e93f02298', // Test project ID
   endpoint: 'https://bss-intl.myhuaweicloud.com',
   region: 'ap-southeast-1' // Default region
 }
@@ -280,15 +280,21 @@ async function generateHuaweiSignature(
 ): Promise<{ authorization: string; signedHeaders: string }> {
   const encoder = new TextEncoder()
   
-  // 1. Build canonical headers and signed headers
-  const headerKeys = Object.keys(headers).map(k => k.toLowerCase()).sort()
-  const canonicalHeaders = headerKeys.map(k => `${k}:${headers[k]}`).join('\n') + '\n'
+  // 1. Normalize headers to lowercase for signing
+  const normalizedHeaders: Record<string, string> = {}
+  Object.keys(headers).forEach(k => {
+    normalizedHeaders[k.toLowerCase()] = headers[k]
+  })
+  
+  // 2. Build canonical headers and signed headers
+  const headerKeys = Object.keys(normalizedHeaders).sort()
+  const canonicalHeaders = headerKeys.map(k => `${k}:${normalizedHeaders[k]}`).join('\n') + '\n'
   const signedHeaders = headerKeys.join(';')
   
-  // 2. Hash the request payload
+  // 3. Hash the request payload
   const hashedPayload = await sha256Hex(body)
   
-  // 3. Build canonical request
+  // 4. Build canonical request
   const canonicalRequest = [
     method,
     path,
@@ -298,17 +304,17 @@ async function generateHuaweiSignature(
     hashedPayload
   ].join('\n')
   
-  // 4. Hash the canonical request
+  // 5. Hash the canonical request
   const hashedCanonicalRequest = await sha256Hex(canonicalRequest)
   
-  // 5. Build string to sign
+  // 6. Build string to sign
   const stringToSign = [
     'SDK-HMAC-SHA256',
     timestamp,
     hashedCanonicalRequest
   ].join('\n')
   
-  // 6. Derive signing key (multi-step HMAC)
+  // 7. Derive signing key (multi-step HMAC)
   const dateStr = timestamp.substring(0, 8) // YYYYMMDD
   
   const kSecret = encoder.encode('SDK' + HUAWEI_CLOUD_CONFIG.secretKey)
@@ -317,10 +323,10 @@ async function generateHuaweiSignature(
   const kService = await hmacSha256(kRegion, service)
   const kSigning = await hmacSha256(kService, 'sdk_request')
   
-  // 7. Calculate signature
+  // 8. Calculate signature
   const signature = await hmacSha256Hex(kSigning, stringToSign)
   
-  // 8. Build authorization header
+  // 9. Build authorization header
   const authorization = `SDK-HMAC-SHA256 Access=${HUAWEI_CLOUD_CONFIG.accessKey}, SignedHeaders=${signedHeaders}, Signature=${signature}`
   
   return { authorization, signedHeaders }
@@ -358,6 +364,7 @@ async function fetchHuaweiPricing(instanceName: string, region: string, os: stri
     const bodyString = JSON.stringify(requestBody)
     const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
     const path = '/v2/bills/ratings/on-demand-resources'
+    const pathForSignature = path + '/'  // Fetch somehow adds trailing slash, so sign with it
     const host = 'bss-intl.myhuaweicloud.com'
     
     // Build headers for signing
@@ -370,7 +377,7 @@ async function fetchHuaweiPricing(instanceName: string, region: string, os: stri
     // Generate signature with proper algorithm
     const { authorization } = await generateHuaweiSignature(
       'POST',
-      path,
+      pathForSignature,  // Sign with trailing slash
       '',
       headersToSign,
       bodyString,
@@ -379,7 +386,7 @@ async function fetchHuaweiPricing(instanceName: string, region: string, os: stri
       'bss-intl'
     )
     
-    const response = await fetch(`${HUAWEI_CLOUD_CONFIG.endpoint}${path}`, {
+    const response = await fetch(`${HUAWEI_CLOUD_CONFIG.endpoint}${path}`, {  // Fetch without trailing slash
       method: 'POST',
       headers: {
         'Host': host,
@@ -452,6 +459,7 @@ async function fetchStoragePricing(storageType: string, storageSize: number, reg
     const bodyString = JSON.stringify(requestBody)
     const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
     const path = '/v2/bills/ratings/on-demand-resources'
+    const pathForSignature = path + '/'  // Fetch somehow adds trailing slash, so sign with it
     const host = 'bss-intl.myhuaweicloud.com'
     
     // Build headers for signing
@@ -464,7 +472,7 @@ async function fetchStoragePricing(storageType: string, storageSize: number, reg
     // Generate signature with proper algorithm
     const { authorization } = await generateHuaweiSignature(
       'POST',
-      path,
+      pathForSignature,  // Sign with trailing slash
       '',
       headersToSign,
       bodyString,
@@ -473,7 +481,7 @@ async function fetchStoragePricing(storageType: string, storageSize: number, reg
       'bss-intl'
     )
     
-    const response = await fetch(`${HUAWEI_CLOUD_CONFIG.endpoint}${path}`, {
+    const response = await fetch(`${HUAWEI_CLOUD_CONFIG.endpoint}${path}`, {  // Fetch without trailing slash
       method: 'POST',
       headers: {
         'Host': host,
@@ -855,23 +863,25 @@ app.post('/api/process', async (c) => {
 // API endpoint to test Huawei Cloud API integration
 app.get('/api/test-huawei', async (c) => {
   try {
-    console.log('Testing Huawei Cloud API...')
     const testPrice = await fetchHuaweiPricing('s6.small.1', 'ap-southeast-1', 'Linux')
-    console.log(`Test price result: $${testPrice}/hour`)
     
     return c.json({
       success: true,
       message: 'Huawei Cloud API test',
+      accountReference: 'APClouddemoHK',
       testInstance: 's6.small.1',
       region: 'ap-southeast-1',
       os: 'Linux',
       hourlyPrice: testPrice,
       monthlyPrice: testPrice * 730,
       config: {
+        accountReference: 'APClouddemoHK',
         endpoint: HUAWEI_CLOUD_CONFIG.endpoint,
         hasAccessKey: !!HUAWEI_CLOUD_CONFIG.accessKey,
+        accessKeyPrefix: HUAWEI_CLOUD_CONFIG.accessKey.substring(0, 8) + '...',
         hasSecretKey: !!HUAWEI_CLOUD_CONFIG.secretKey,
-        projectId: HUAWEI_CLOUD_CONFIG.projectId
+        projectId: HUAWEI_CLOUD_CONFIG.projectId,
+        region: HUAWEI_CLOUD_CONFIG.region
       }
     })
   } catch (error) {
