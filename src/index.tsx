@@ -905,6 +905,7 @@ app.get('/', (c) => {
         <title>AWS to Huawei Cloud Quotation Generator</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     </head>
     <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
         <div class="container mx-auto px-4 py-8">
@@ -1004,7 +1005,7 @@ app.get('/', (c) => {
                     <div class="mt-6 flex gap-4">
                         <button id="downloadBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
                             <i class="fas fa-download mr-2"></i>
-                            Download Quotation (CSV)
+                            Download Quotation (Excel)
                         </button>
                         <button id="resetBtn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
                             <i class="fas fa-redo mr-2"></i>
@@ -1266,15 +1267,32 @@ app.get('/', (c) => {
             downloadBtn.addEventListener('click', () => {
                 if (!quotationData) return;
 
-                let csvContent = "Quotation ID,Instance Name,AWS Instance,Huawei Instance,Line #,Type,SKU,Description,Specifications,Quantity,PAYG Monthly,Subscription Monthly,Region,Notes\\n";
-                
                 // Calculate totals by type
                 let computePayg = 0, computeSubscription = 0;
                 let storagePayg = 0, storageSubscription = 0;
                 
+                // Sheet 1: Detailed Line Items (without savings column)
+                const detailRows = [];
+                detailRows.push(['Quotation ID', 'Instance Name', 'AWS Instance', 'Huawei Instance', 'Line #', 'Type', 'SKU', 'Description', 'Specifications', 'Quantity', 'PAYG Monthly (USD)', 'Subscription Monthly (USD)', 'Region', 'Notes']);
+                
                 quotationData.quotations.forEach(q => {
                     q.lineItems.forEach(item => {
-                        csvContent += \`"\${q.quotationId}","\${q.instanceName}","\${q.awsInstance}","\${q.huaweiInstance}",\${item.lineNumber},"\${item.itemType}","\${item.sku}","\${item.description}","\${item.specifications}",\${item.quantity},\${item.pricing.payg.toFixed(2)},\${item.pricing.subscription.toFixed(2)},"\${item.region}","\${item.notes}"\\n\`;
+                        detailRows.push([
+                            q.quotationId,
+                            q.instanceName,
+                            q.awsInstance,
+                            q.huaweiInstance,
+                            item.lineNumber,
+                            item.itemType.toUpperCase(),
+                            item.sku,
+                            item.description,
+                            item.specifications,
+                            item.quantity,
+                            parseFloat(item.pricing.payg.toFixed(2)),
+                            parseFloat(item.pricing.subscription.toFixed(2)),
+                            item.region,
+                            item.notes
+                        ]);
                         
                         // Accumulate by type
                         if (item.itemType === 'compute') {
@@ -1285,31 +1303,102 @@ app.get('/', (c) => {
                             storageSubscription += item.pricing.subscription;
                         }
                     });
-                    // Add instance subtotals (without savings)
-                    csvContent += \`"\${q.quotationId}","\${q.instanceName}","Instance Total","","","","","","","\${q.pricing.payg.total.toFixed(2)}","\${q.pricing.subscription.total.toFixed(2)}","",""\\n\`;
-                    csvContent += \`\\n\`; // Empty line between instances
+                    // Add instance subtotal row (without savings)
+                    detailRows.push([
+                        q.quotationId,
+                        q.instanceName + ' - SUBTOTAL',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        parseFloat(q.pricing.payg.total.toFixed(2)),
+                        parseFloat(q.pricing.subscription.total.toFixed(2)),
+                        '',
+                        ''
+                    ]);
+                    detailRows.push([]); // Empty row between instances
                 });
 
                 const computeSavings = computePayg - computeSubscription;
                 const storageSavings = storagePayg - storageSubscription;
                 const totalSavings = quotationData.totalPricing.subscription.discount;
 
-                // Add summary section
-                csvContent += \`\\n"=== COST SUMMARY BY TYPE ==="\\n\`;
-                csvContent += \`"Type","PAYG Total","Subscription Total","Savings"\\n\`;
-                csvContent += \`"COMPUTE","\${computePayg.toFixed(2)}","\${computeSubscription.toFixed(2)}","\${computeSavings.toFixed(2)}"\\n\`;
-                csvContent += \`"STORAGE","\${storagePayg.toFixed(2)}","\${storageSubscription.toFixed(2)}","\${storageSavings.toFixed(2)}"\\n\`;
-                csvContent += \`"GRAND TOTAL","\${quotationData.totalPricing.payg.total.toFixed(2)}","\${quotationData.totalPricing.subscription.total.toFixed(2)}","\${totalSavings.toFixed(2)} (\${quotationData.totalPricing.subscription.discountPercentage}%)"\`;
+                // Sheet 2: Summary Page with totals by type and savings
+                const summaryRows = [];
+                summaryRows.push(['HUAWEI CLOUD QUOTATION SUMMARY']);
+                summaryRows.push([]);
+                summaryRows.push(['Generated Date:', new Date(quotationData.generatedAt).toLocaleString()]);
+                summaryRows.push(['Currency:', 'USD']);
+                summaryRows.push(['Price Source:', quotationData.priceSource]);
+                summaryRows.push([]);
+                summaryRows.push(['COST BREAKDOWN BY TYPE']);
+                summaryRows.push([]);
+                summaryRows.push(['Type', 'PAYG Monthly (USD)', 'Subscription Monthly (USD)', 'Savings (USD)', 'Savings (%)']);
+                summaryRows.push([
+                    'COMPUTE',
+                    parseFloat(computePayg.toFixed(2)),
+                    parseFloat(computeSubscription.toFixed(2)),
+                    parseFloat(computeSavings.toFixed(2)),
+                    ((computeSavings / computePayg) * 100).toFixed(1) + '%'
+                ]);
+                summaryRows.push([
+                    'STORAGE',
+                    parseFloat(storagePayg.toFixed(2)),
+                    parseFloat(storageSubscription.toFixed(2)),
+                    parseFloat(storageSavings.toFixed(2)),
+                    ((storageSavings / storagePayg) * 100).toFixed(1) + '%'
+                ]);
+                summaryRows.push([]);
+                summaryRows.push([
+                    'GRAND TOTAL',
+                    parseFloat(quotationData.totalPricing.payg.total.toFixed(2)),
+                    parseFloat(quotationData.totalPricing.subscription.total.toFixed(2)),
+                    parseFloat(totalSavings.toFixed(2)),
+                    quotationData.totalPricing.subscription.discountPercentage + '%'
+                ]);
+                summaryRows.push([]);
+                summaryRows.push(['RECOMMENDED: Monthly Subscription model saves ' + quotationData.totalPricing.subscription.discountPercentage + '% compared to Pay-As-You-Go']);
 
-                const blob = new Blob([csvContent], { type: 'text/csv' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = \`huawei_cloud_quotation_\${new Date().toISOString().split('T')[0]}.csv\`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
+                // Create workbook with two sheets
+                const wb = XLSX.utils.book_new();
+                const ws1 = XLSX.utils.aoa_to_sheet(detailRows);
+                const ws2 = XLSX.utils.aoa_to_sheet(summaryRows);
+                
+                // Set column widths for better readability
+                ws1['!cols'] = [
+                    {wch: 20}, // Quotation ID
+                    {wch: 20}, // Instance Name
+                    {wch: 15}, // AWS Instance
+                    {wch: 15}, // Huawei Instance
+                    {wch: 8},  // Line #
+                    {wch: 10}, // Type
+                    {wch: 20}, // SKU
+                    {wch: 35}, // Description
+                    {wch: 25}, // Specifications
+                    {wch: 10}, // Quantity
+                    {wch: 18}, // PAYG Monthly
+                    {wch: 22}, // Subscription Monthly
+                    {wch: 15}, // Region
+                    {wch: 50}  // Notes
+                ];
+                
+                ws2['!cols'] = [
+                    {wch: 20}, // Type/Label
+                    {wch: 20}, // PAYG
+                    {wch: 25}, // Subscription
+                    {wch: 18}, // Savings
+                    {wch: 15}  // Savings %
+                ];
+                
+                XLSX.utils.book_append_sheet(wb, ws1, 'Detailed Quotation');
+                XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+                
+                // Generate Excel file
+                XLSX.writeFile(wb, \`huawei_cloud_quotation_\${new Date().toISOString().split('T')[0]}.xlsx\`);
             });
 
             resetBtn.addEventListener('click', () => {
