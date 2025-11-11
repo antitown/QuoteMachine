@@ -84,6 +84,11 @@ interface EC2Instance {
   storageType?: string
 }
 
+interface PricingModel {
+  payg: number           // Pay-as-you-go monthly price
+  subscription: number   // Monthly subscription price (typically 15-20% discount)
+}
+
 interface QuotationLineItem {
   lineNumber: number
   itemType: 'compute' | 'storage'
@@ -93,8 +98,7 @@ interface QuotationLineItem {
   quantity: number
   unitPrice: number
   unit: string
-  monthlyPrice: number
-  totalPrice: number
+  pricing: PricingModel
   region: string
   notes: string
 }
@@ -112,8 +116,17 @@ interface HuaweiQuotation {
   storage: number
   storageType: string
   lineItems: QuotationLineItem[]
-  subtotal: number
-  totalMonthlyPrice: number
+  pricing: {
+    payg: {
+      subtotal: number
+      total: number
+    }
+    subscription: {
+      subtotal: number
+      total: number
+      discount: number
+    }
+  }
   priceSource: string
   lastUpdated: string
 }
@@ -271,8 +284,10 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
 
       const lineItems: QuotationLineItem[] = []
 
-      // Compute line item
-      const computeMonthly = computePrice * hoursPerMonth
+      // Compute line item with both pricing models
+      const computeMonthlyPayg = computePrice * hoursPerMonth
+      const computeMonthlySubscription = computeMonthlyPayg * 0.85 // 15% discount for subscription
+      
       lineItems.push({
         lineNumber: lineNumber++,
         itemType: 'compute',
@@ -282,14 +297,18 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
         quantity: 1,
         unitPrice: computePrice,
         unit: 'Hour',
-        monthlyPrice: computeMonthly,
-        totalPrice: computeMonthly,
+        pricing: {
+          payg: computeMonthlyPayg,
+          subscription: computeMonthlySubscription
+        },
         region: instance.region,
         notes: `Mapped from AWS ${instance.instanceType} (Generic mapping) - ${instance.instanceName}`
       })
 
-      // Storage line item
-      const storageMonthly = storagePrice * (instance.storage || 100)
+      // Storage line item with both pricing models
+      const storageMonthlyPayg = storagePrice * (instance.storage || 100)
+      const storageMonthlySubscription = storageMonthlyPayg * 0.90 // 10% discount for subscription
+      
       lineItems.push({
         lineNumber: lineNumber++,
         itemType: 'storage',
@@ -299,13 +318,18 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
         quantity: 1,
         unitPrice: storagePrice,
         unit: 'GB/Month',
-        monthlyPrice: storageMonthly,
-        totalPrice: storageMonthly,
+        pricing: {
+          payg: storageMonthlyPayg,
+          subscription: storageMonthlySubscription
+        },
         region: instance.region,
         notes: `High-performance block storage - ${instance.instanceName}`
       })
 
-      const subtotal = lineItems.reduce((sum, item) => sum + item.totalPrice, 0)
+      // Calculate totals for both pricing models
+      const paygTotal = lineItems.reduce((sum, item) => sum + item.pricing.payg, 0)
+      const subscriptionTotal = lineItems.reduce((sum, item) => sum + item.pricing.subscription, 0)
+      const discount = paygTotal - subscriptionTotal
 
       quotations.push({
         quotationId: `HW-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -320,8 +344,17 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
         storage: instance.storage || 100,
         storageType: instance.storageType || 'SSD',
         lineItems,
-        subtotal,
-        totalMonthlyPrice: subtotal,
+        pricing: {
+          payg: {
+            subtotal: paygTotal,
+            total: paygTotal
+          },
+          subscription: {
+            subtotal: subscriptionTotal,
+            total: subscriptionTotal,
+            discount: discount
+          }
+        },
         priceSource: refreshPricing ? 'live' : pricingCache.source,
         lastUpdated: new Date().toISOString()
       })
@@ -339,8 +372,10 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
 
     const lineItems: QuotationLineItem[] = []
 
-    // Compute line item
-    const computeMonthly = computePrice * hoursPerMonth
+    // Compute line item with both pricing models
+    const computeMonthlyPayg = computePrice * hoursPerMonth
+    const computeMonthlySubscription = computeMonthlyPayg * 0.85 // 15% discount for subscription
+    
     lineItems.push({
       lineNumber: lineNumber++,
       itemType: 'compute',
@@ -350,14 +385,18 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       quantity: 1,
       unitPrice: computePrice,
       unit: 'Hour',
-      monthlyPrice: computeMonthly,
-      totalPrice: computeMonthly,
+      pricing: {
+        payg: computeMonthlyPayg,
+        subscription: computeMonthlySubscription
+      },
       region: instance.region,
       notes: `Mapped from AWS ${instance.instanceType} - ${instance.instanceName}`
     })
 
-    // Storage line item
-    const storageMonthly = storagePrice * (instance.storage || 100)
+    // Storage line item with both pricing models
+    const storageMonthlyPayg = storagePrice * (instance.storage || 100)
+    const storageMonthlySubscription = storageMonthlyPayg * 0.90 // 10% discount for subscription
+    
     lineItems.push({
       lineNumber: lineNumber++,
       itemType: 'storage',
@@ -367,13 +406,18 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       quantity: 1,
       unitPrice: storagePrice,
       unit: 'GB/Month',
-      monthlyPrice: storageMonthly,
-      totalPrice: storageMonthly,
+      pricing: {
+        payg: storageMonthlyPayg,
+        subscription: storageMonthlySubscription
+      },
       region: instance.region,
       notes: `High-performance block storage - ${instance.instanceName}`
     })
 
-    const subtotal = lineItems.reduce((sum, item) => sum + item.totalPrice, 0)
+    // Calculate totals for both pricing models
+    const paygTotal = lineItems.reduce((sum, item) => sum + item.pricing.payg, 0)
+    const subscriptionTotal = lineItems.reduce((sum, item) => sum + item.pricing.subscription, 0)
+    const discount = paygTotal - subscriptionTotal
 
     quotations.push({
       quotationId: `HW-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -388,8 +432,17 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       storage: instance.storage || 100,
       storageType: instance.storageType || 'SSD',
       lineItems,
-      subtotal,
-      totalMonthlyPrice: subtotal,
+      pricing: {
+        payg: {
+          subtotal: paygTotal,
+          total: paygTotal
+        },
+        subscription: {
+          subtotal: subscriptionTotal,
+          total: subscriptionTotal,
+          discount: discount
+        }
+      },
       priceSource: refreshPricing ? 'live' : pricingCache.source,
       lastUpdated: new Date().toISOString()
     })
@@ -459,12 +512,27 @@ app.post('/api/process', async (c) => {
     }
 
     const quotations = await generateQuotation(instances, refreshPricing)
-    const totalCost = quotations.reduce((sum, q) => sum + q.totalMonthlyPrice, 0)
+    
+    // Calculate grand totals for both pricing models
+    const grandTotalPayg = quotations.reduce((sum, q) => sum + q.pricing.payg.total, 0)
+    const grandTotalSubscription = quotations.reduce((sum, q) => sum + q.pricing.subscription.total, 0)
+    const grandDiscount = grandTotalPayg - grandTotalSubscription
 
     return c.json({
       success: true,
       quotations,
-      totalCost,
+      totalPricing: {
+        payg: {
+          total: grandTotalPayg,
+          perMonth: grandTotalPayg
+        },
+        subscription: {
+          total: grandTotalSubscription,
+          perMonth: grandTotalSubscription,
+          discount: grandDiscount,
+          discountPercentage: ((grandDiscount / grandTotalPayg) * 100).toFixed(1)
+        }
+      },
       currency: 'USD',
       priceSource: refreshPricing ? 'live' : pricingCache.source,
       generatedAt: new Date().toISOString()
@@ -578,10 +646,8 @@ app.get('/', (c) => {
                     <div id="quotationDetails"></div>
                     
                     <div class="border-t-2 pt-6 mt-6">
-                        <div class="flex justify-between items-center">
-                            <span class="text-2xl font-bold text-gray-800">Total Monthly Cost:</span>
-                            <span id="totalCost" class="text-3xl font-bold text-blue-600"></span>
-                        </div>
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">Grand Total - All Instances</h3>
+                        <div id="totalCost" class="bg-gradient-to-r from-blue-50 to-green-50 p-6 rounded-lg"></div>
                     </div>
 
                     <div class="mt-6 flex gap-4">
@@ -722,9 +788,8 @@ app.get('/', (c) => {
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Specifications</th>
                                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
-                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monthly</th>
-                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">PAYG/Month</th>
+                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subscription/Month</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
@@ -740,14 +805,18 @@ app.get('/', (c) => {
                                             <td class="px-4 py-3 text-sm text-gray-900">\${item.description}</td>
                                             <td class="px-4 py-3 text-sm text-gray-700">\${item.specifications}</td>
                                             <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-700">\${item.quantity}</td>
-                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-700">$\${item.unitPrice.toFixed(4)}/\${item.unit}</td>
-                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-gray-900">$\${item.monthlyPrice.toFixed(2)}</td>
-                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-gray-900">$\${item.totalPrice.toFixed(2)}</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-gray-900">$\${item.pricing.payg.toFixed(2)}</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-green-700">$\${item.pricing.subscription.toFixed(2)}</td>
                                         </tr>
                                     \`).join('')}
-                                    <tr class="bg-gray-50 font-semibold">
-                                        <td colspan="8" class="px-4 py-3 text-right text-sm text-gray-800">Subtotal:</td>
-                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-blue-600">$\${quote.totalMonthlyPrice.toFixed(2)}</td>
+                                    <tr class="bg-blue-50 font-semibold">
+                                        <td colspan="6" class="px-4 py-3 text-right text-sm text-gray-800">Instance Total (PAYG):</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-blue-600">$\${quote.pricing.payg.total.toFixed(2)}</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-green-600">$\${quote.pricing.subscription.total.toFixed(2)}</td>
+                                    </tr>
+                                    <tr class="bg-green-50">
+                                        <td colspan="6" class="px-4 py-3 text-right text-sm text-green-700">Subscription Discount:</td>
+                                        <td colspan="2" class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-green-600">-$\${quote.pricing.subscription.discount.toFixed(2)} (Save \${((quote.pricing.subscription.discount / quote.pricing.payg.total) * 100).toFixed(1)}%)</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -761,7 +830,25 @@ app.get('/', (c) => {
                 });
 
                 quotationDetails.innerHTML = html;
-                totalCost.textContent = \`$\${data.totalCost.toFixed(2)} USD/month\`;
+                
+                // Display total pricing for both models
+                totalCost.innerHTML = \`
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-lg text-gray-600">Pay-As-You-Go Total:</span>
+                            <span class="text-2xl font-bold text-blue-600">$\${data.totalPricing.payg.total.toFixed(2)}/month</span>
+                        </div>
+                        <div class="flex justify-between items-center border-t pt-2">
+                            <span class="text-lg text-gray-600">Monthly Subscription Total:</span>
+                            <span class="text-2xl font-bold text-green-600">$\${data.totalPricing.subscription.total.toFixed(2)}/month</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-green-700">You save with subscription:</span>
+                            <span class="font-semibold text-green-700">$\${data.totalPricing.subscription.discount.toFixed(2)} (\${data.totalPricing.subscription.discountPercentage}% discount)</span>
+                        </div>
+                    </div>
+                \`;
+                
                 generatedAt.textContent = new Date(data.generatedAt).toLocaleString();
                 results.classList.remove('hidden');
             }
@@ -769,15 +856,18 @@ app.get('/', (c) => {
             downloadBtn.addEventListener('click', () => {
                 if (!quotationData) return;
 
-                let csvContent = "Quotation ID,Instance Name,AWS Instance,Huawei Instance,Line #,Type,SKU,Description,Specifications,Quantity,Unit Price,Unit,Monthly Price,Total Price,Region,Notes\\n";
+                let csvContent = "Quotation ID,Instance Name,AWS Instance,Huawei Instance,Line #,Type,SKU,Description,Specifications,Quantity,PAYG Monthly,Subscription Monthly,Region,Notes\\n";
                 
                 quotationData.quotations.forEach(q => {
                     q.lineItems.forEach(item => {
-                        csvContent += \`"\${q.quotationId}","\${q.instanceName}","\${q.awsInstance}","\${q.huaweiInstance}",\${item.lineNumber},"\${item.itemType}","\${item.sku}","\${item.description}","\${item.specifications}",\${item.quantity},\${item.unitPrice},"\${item.unit}",\${item.monthlyPrice.toFixed(2)},\${item.totalPrice.toFixed(2)},"\${item.region}","\${item.notes}"\\n\`;
+                        csvContent += \`"\${q.quotationId}","\${q.instanceName}","\${q.awsInstance}","\${q.huaweiInstance}",\${item.lineNumber},"\${item.itemType}","\${item.sku}","\${item.description}","\${item.specifications}",\${item.quantity},\${item.pricing.payg.toFixed(2)},\${item.pricing.subscription.toFixed(2)},"\${item.region}","\${item.notes}"\\n\`;
                     });
+                    // Add instance subtotals
+                    csvContent += \`"\${q.quotationId}","\${q.instanceName}","Instance Total","","","","","","","\${q.pricing.payg.total.toFixed(2)}","\${q.pricing.subscription.total.toFixed(2)}","","Save: $\${q.pricing.subscription.discount.toFixed(2)}"\\n\`;
+                    csvContent += \`\\n\`; // Empty line between instances
                 });
 
-                csvContent += \`\\n"Total Monthly Cost:",,,,,,,,,,,,$\${quotationData.totalCost.toFixed(2)}\`;
+                csvContent += \`\\n"Grand Total (All Instances):","","","","","","","","","\${quotationData.totalPricing.payg.total.toFixed(2)}","\${quotationData.totalPricing.subscription.total.toFixed(2)}","","Subscription Discount: $\${quotationData.totalPricing.subscription.discount.toFixed(2)} (\${quotationData.totalPricing.subscription.discountPercentage}%)"\`;
 
                 const blob = new Blob([csvContent], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);

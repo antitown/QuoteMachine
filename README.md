@@ -159,9 +159,29 @@ node create_sample.cjs
 7. **Review Results**: View detailed quotation with separate compute and storage line items
    - Each instance generates two SKU line items: compute and storage
    - View SKU codes, specifications, unit prices, and totals
-8. **Download Report**: Click "Download Quotation" to get a detailed CSV file with all SKU information
+   - **Compare pricing models**: PAYG vs Monthly Subscription side-by-side
+   - **See savings**: Automatic calculation of discount and savings percentage
+8. **Download Report**: Click "Download Quotation" to get a detailed CSV file with all SKU information and both pricing models
 
 ## Pricing Information
+
+### Dual Pricing Models
+The quotation generator provides **two pricing models** side-by-side for easy comparison:
+
+#### 1. Pay-As-You-Go (PAYG) Model
+- **Billing**: Hourly usage converted to monthly estimate
+- **Flexibility**: No commitment, pay only for what you use
+- **Best For**: Variable workloads, testing, short-term projects
+- **Calculation**: Hourly rate × 730 hours/month
+
+#### 2. Monthly Subscription Model
+- **Billing**: Fixed monthly commitment pricing
+- **Discounts**: 
+  - **15% off compute pricing** (ECS instances)
+  - **10% off storage pricing** (EVS volumes)
+- **Best For**: Stable workloads, long-term production environments
+- **Savings**: Typically 10-15% total cost reduction
+- **Calculation**: (PAYG monthly price) × discount multiplier
 
 ### Compute Pricing (Separate SKU)
 - **Instance Pricing**: Based on Huawei Cloud list prices (hourly rates calculated to monthly)
@@ -170,14 +190,25 @@ node create_sample.cjs
   - Cached (default): Fast, uses last refreshed prices
   - Live: Real-time API pricing with slight delay
 - **Region Multipliers**: Prices vary by region (US, EU, Asia-Pacific)
-- **Calculation**: Unit price per hour × 730 hours/month × quantity
+- **PAYG Calculation**: Unit price per hour × 730 hours/month × quantity
+- **Subscription Calculation**: PAYG monthly × 0.85 (15% discount)
 
 ### Storage Pricing (Separate SKU)
 - **SKU Format**: HW-EVS-{TYPE} (e.g., HW-EVS-SSD, HW-EVS-HDD)
-- **SSD**: $0.10 per GB per month
-- **HDD**: $0.05 per GB per month
-- **Ultra-high I/O**: $0.15 per GB per month
-- **Calculation**: Price per GB × storage size × quantity
+- **Base Rates (PAYG)**:
+  - **SSD**: $0.10 per GB per month
+  - **HDD**: $0.05 per GB per month
+  - **Ultra-high I/O**: $0.15 per GB per month
+- **PAYG Calculation**: Price per GB × storage size × quantity
+- **Subscription Calculation**: PAYG monthly × 0.90 (10% discount)
+
+### Quotation Output Features
+- **Side-by-Side Comparison**: View both pricing models in the same table
+- **Line Item Detail**: Each compute and storage SKU shows both PAYG and subscription pricing
+- **Instance Totals**: Subtotals for each instance in both models
+- **Grand Totals**: Overall monthly costs with clear savings display
+- **Discount Percentage**: Automatic calculation showing total savings
+- **CSV Export**: Download detailed quotation with both pricing models
 
 ### Pricing Refresh
 - **Manual Refresh**: Click "Refresh Pricing" button to fetch latest prices
@@ -231,21 +262,27 @@ curl -X POST http://localhost:3000/api/process -F "file=@aws_instances.xlsx" -F 
   - TailwindCSS (Frontend styling)
   - Axios (HTTP client)
   - PM2 (Process manager)
-- **Last Updated**: 2025-11-10
+- **Last Updated**: 2025-11-11
 
 ## Sample Files
 - **AWS_Sample.xlsx**: Sample Excel file with AWS EC2 instances (included in project)
 - **create_sample.cjs**: Script to generate sample Excel files
 
-## Latest Updates (v2.0)
+## Latest Updates (v2.1)
 
 ### ✅ Completed Features
+- **Dual Pricing Models (NEW)**: Side-by-side PAYG and Monthly Subscription pricing
+  - 15% discount on compute for subscription model
+  - 10% discount on storage for subscription model
+  - Automatic savings calculation and percentage display
+  - Both models included in quotation tables and CSV exports
 - **Manual Pricing Refresh**: Real-time pricing updates from AWS and Huawei Cloud APIs
 - **Separated SKUs**: Compute and storage broken into individual line items
 - **SKU Codes**: Professional SKU coding system (HW-ECS-*, HW-EVS-*)
 - **Live Pricing Option**: Choose between cached or real-time pricing
 - **Detailed Quotations**: Line-by-line breakdown with specifications
-- **Enhanced CSV Export**: Full SKU details in downloadable reports
+- **Enhanced CSV Export**: Full SKU details with both pricing models in downloadable reports
+- **Instance Name Tracking**: One row per instance with unique instance names
 
 ### API Endpoints
 - `GET /api/pricing` - Get current pricing cache
