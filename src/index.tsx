@@ -76,8 +76,8 @@ const defaultPricing = {
 }
 
 interface EC2Instance {
+  instanceName: string
   instanceType: string
-  instanceCount: number
   region: string
   os: string
   storage?: number
@@ -102,11 +102,11 @@ interface QuotationLineItem {
 interface HuaweiQuotation {
   quotationId: string
   generatedAt: string
+  instanceName: string
   awsInstance: string
   huaweiInstance: string
   vcpu: number
   memory: number
-  instanceQuantity: number
   region: string
   os: string
   storage: number
@@ -225,8 +225,9 @@ function parseExcelFile(fileBuffer: ArrayBuffer): EC2Instance[] {
   const instances: EC2Instance[] = []
 
   for (const row of data) {
+    // First column should be Instance Name
+    const instanceName = row['Instance Name'] || row['InstanceName'] || row['instance_name'] || row['Name'] || `Instance-${instances.length + 1}`
     const instanceType = row['Instance Type'] || row['InstanceType'] || row['instance_type'] || row['Type']
-    const instanceCount = parseInt(row['Count'] || row['Quantity'] || row['quantity'] || row['count'] || '1')
     const region = row['Region'] || row['region'] || 'us-east-1'
     const os = row['OS'] || row['os'] || row['Operating System'] || 'Linux'
     const storage = parseInt(row['Storage'] || row['storage'] || row['Storage (GB)'] || '100')
@@ -234,8 +235,8 @@ function parseExcelFile(fileBuffer: ArrayBuffer): EC2Instance[] {
 
     if (instanceType) {
       instances.push({
+        instanceName: instanceName.toString().trim(),
         instanceType: instanceType.trim(),
-        instanceCount,
         region,
         os,
         storage,
@@ -278,13 +279,13 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
         sku: genericMapping.sku,
         description: `Huawei Cloud ECS Instance - ${genericMapping.name}`,
         specifications: `${genericMapping.vcpu} vCPU, ${genericMapping.memory}GB RAM, Linux`,
-        quantity: instance.instanceCount,
+        quantity: 1,
         unitPrice: computePrice,
         unit: 'Hour',
         monthlyPrice: computeMonthly,
-        totalPrice: computeMonthly * instance.instanceCount,
+        totalPrice: computeMonthly,
         region: instance.region,
-        notes: `Mapped from AWS ${instance.instanceType} (Generic mapping)`
+        notes: `Mapped from AWS ${instance.instanceType} (Generic mapping) - ${instance.instanceName}`
       })
 
       // Storage line item
@@ -295,13 +296,13 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
         sku: `HW-EVS-${instance.storageType || 'SSD'}`,
         description: `Huawei Cloud EVS - ${instance.storageType || 'SSD'}`,
         specifications: `${instance.storage || 100}GB ${instance.storageType || 'SSD'} Block Storage`,
-        quantity: instance.instanceCount,
+        quantity: 1,
         unitPrice: storagePrice,
         unit: 'GB/Month',
         monthlyPrice: storageMonthly,
-        totalPrice: storageMonthly * instance.instanceCount,
+        totalPrice: storageMonthly,
         region: instance.region,
-        notes: 'High-performance block storage'
+        notes: `High-performance block storage - ${instance.instanceName}`
       })
 
       const subtotal = lineItems.reduce((sum, item) => sum + item.totalPrice, 0)
@@ -309,11 +310,11 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       quotations.push({
         quotationId: `HW-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         generatedAt: new Date().toISOString(),
+        instanceName: instance.instanceName,
         awsInstance: instance.instanceType,
         huaweiInstance: genericMapping.name,
         vcpu: genericMapping.vcpu,
         memory: genericMapping.memory,
-        instanceQuantity: instance.instanceCount,
         region: instance.region,
         os: instance.os,
         storage: instance.storage || 100,
@@ -346,13 +347,13 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       sku: mapping.sku,
       description: `Huawei Cloud ECS Instance - ${mapping.name}`,
       specifications: `${mapping.vcpu} vCPU, ${mapping.memory}GB RAM, ${instance.os}`,
-      quantity: instance.instanceCount,
+      quantity: 1,
       unitPrice: computePrice,
       unit: 'Hour',
       monthlyPrice: computeMonthly,
-      totalPrice: computeMonthly * instance.instanceCount,
+      totalPrice: computeMonthly,
       region: instance.region,
-      notes: `Mapped from AWS ${instance.instanceType}`
+      notes: `Mapped from AWS ${instance.instanceType} - ${instance.instanceName}`
     })
 
     // Storage line item
@@ -363,13 +364,13 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       sku: `HW-EVS-${instance.storageType || 'SSD'}`,
       description: `Huawei Cloud EVS - ${instance.storageType || 'SSD'}`,
       specifications: `${instance.storage || 100}GB ${instance.storageType || 'SSD'} Block Storage`,
-      quantity: instance.instanceCount,
+      quantity: 1,
       unitPrice: storagePrice,
       unit: 'GB/Month',
       monthlyPrice: storageMonthly,
-      totalPrice: storageMonthly * instance.instanceCount,
+      totalPrice: storageMonthly,
       region: instance.region,
-      notes: 'High-performance block storage'
+      notes: `High-performance block storage - ${instance.instanceName}`
     })
 
     const subtotal = lineItems.reduce((sum, item) => sum + item.totalPrice, 0)
@@ -377,11 +378,11 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
     quotations.push({
       quotationId: `HW-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       generatedAt: new Date().toISOString(),
+      instanceName: instance.instanceName,
       awsInstance: instance.instanceType,
       huaweiInstance: mapping.name,
       vcpu: mapping.vcpu,
       memory: mapping.memory,
-      instanceQuantity: instance.instanceCount,
       region: instance.region,
       os: instance.os,
       storage: instance.storage || 100,
@@ -526,7 +527,7 @@ app.get('/', (c) => {
                             Upload Excel File
                         </h2>
                         <p class="text-sm text-gray-600 mb-4">
-                            Excel file should contain columns: <strong>Instance Type</strong>, <strong>Count</strong>, <strong>Region</strong>, <strong>OS</strong>, <strong>Storage</strong>, <strong>Storage Type</strong>
+                            Excel file should contain columns: <strong>Instance Name</strong>, <strong>Instance Type</strong>, <strong>Region</strong>, <strong>OS</strong>, <strong>Storage</strong>, <strong>Storage Type</strong> (one row per instance)
                         </p>
                         
                         <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
@@ -694,6 +695,10 @@ app.get('/', (c) => {
                             <div class="bg-gray-50 p-4 rounded-lg mb-4">
                                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     <div>
+                                        <p class="text-xs text-gray-500">Instance Name</p>
+                                        <p class="font-semibold text-purple-600">\${quote.instanceName}</p>
+                                    </div>
+                                    <div>
                                         <p class="text-xs text-gray-500">AWS Instance</p>
                                         <p class="font-semibold text-gray-800">\${quote.awsInstance}</p>
                                     </div>
@@ -704,10 +709,6 @@ app.get('/', (c) => {
                                     <div>
                                         <p class="text-xs text-gray-500">Specs</p>
                                         <p class="font-semibold text-gray-800">\${quote.vcpu} vCPU, \${quote.memory}GB RAM</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-gray-500">Quantity</p>
-                                        <p class="font-semibold text-gray-800">\${quote.instanceQuantity}x</p>
                                     </div>
                                 </div>
                             </div>
@@ -768,11 +769,11 @@ app.get('/', (c) => {
             downloadBtn.addEventListener('click', () => {
                 if (!quotationData) return;
 
-                let csvContent = "Quotation ID,AWS Instance,Huawei Instance,Line #,Type,SKU,Description,Specifications,Quantity,Unit Price,Unit,Monthly Price,Total Price,Region,Notes\\n";
+                let csvContent = "Quotation ID,Instance Name,AWS Instance,Huawei Instance,Line #,Type,SKU,Description,Specifications,Quantity,Unit Price,Unit,Monthly Price,Total Price,Region,Notes\\n";
                 
                 quotationData.quotations.forEach(q => {
                     q.lineItems.forEach(item => {
-                        csvContent += \`"\${q.quotationId}","\${q.awsInstance}","\${q.huaweiInstance}",\${item.lineNumber},"\${item.itemType}","\${item.sku}","\${item.description}","\${item.specifications}",\${item.quantity},\${item.unitPrice},"\${item.unit}",\${item.monthlyPrice.toFixed(2)},\${item.totalPrice.toFixed(2)},"\${item.region}","\${item.notes}"\\n\`;
+                        csvContent += \`"\${q.quotationId}","\${q.instanceName}","\${q.awsInstance}","\${q.huaweiInstance}",\${item.lineNumber},"\${item.itemType}","\${item.sku}","\${item.description}","\${item.specifications}",\${item.quantity},\${item.unitPrice},"\${item.unit}",\${item.monthlyPrice.toFixed(2)},\${item.totalPrice.toFixed(2)},"\${item.region}","\${item.notes}"\\n\`;
                     });
                 });
 
