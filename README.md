@@ -1,5 +1,13 @@
 # AWS to Huawei Cloud Quotation Generator
 
+## Quick Start
+
+1. **Download Template**: Get [AWS_Sample.xlsx](./AWS_Sample.xlsx) from this repository
+2. **Edit File**: Replace sample data with your AWS EC2 instances
+3. **Upload**: Visit the [web application](https://3000-i683g7rhnhlxqak3cgrzf-2b54fc91.sandbox.novita.ai)
+4. **Generate**: Click "Generate Quotation" to get Huawei Cloud pricing
+5. **Download**: Export detailed quotation as CSV
+
 ## Project Overview
 - **Name**: AWS to Huawei Cloud Quotation Generator
 - **Goal**: Convert AWS EC2 instance configurations to equivalent Huawei Cloud instances with pricing quotations
@@ -18,7 +26,7 @@
 - **Local Development**: http://localhost:3000
 - **Public Sandbox URL**: https://3000-i683g7rhnhlxqak3cgrzf-2b54fc91.sandbox.novita.ai
 - **Production**: (Ready for Cloudflare Pages deployment)
-- **GitHub**: (Ready to push)
+- **GitHub Repository**: https://github.com/antitown/QuoteMachine
 
 ## Data Architecture
 - **Data Models**: 
@@ -43,16 +51,30 @@
 
 **Important**: Use one row per instance with unique instance names. The Count column is no longer used.
 
+### 📥 Template Excel File
+
+**Download Template**: [AWS_Sample.xlsx](./AWS_Sample.xlsx) - A ready-to-use template with example data
+
+You can use this file as a template:
+1. **Download** the `AWS_Sample.xlsx` file from the repository
+2. **Replace** the sample data with your actual AWS instances
+3. **Keep** the column headers exactly as shown
+4. **Upload** to the application
+
+### Required Columns
+
 The Excel file should contain the following columns:
 
-| Column Name | Description | Example |
-|------------|-------------|---------|
-| Instance Name | Unique name for the instance | web-server-01, db-server-02 |
-| Instance Type | AWS EC2 instance type | t2.micro, m5.large, c5.xlarge |
-| Region | AWS region | us-east-1, ap-southeast-1 |
-| OS | Operating system | Linux, Windows |
-| Storage | Storage size in GB | 100, 500 |
-| Storage Type | Type of storage | SSD, HDD |
+| Column Name | Required | Description | Example |
+|------------|----------|-------------|---------|
+| Instance Name | ✅ Yes | Unique name for the instance | web-server-01, db-server-02 |
+| Instance Type | ✅ Yes | AWS EC2 instance type | t2.micro, m5.large, c5.xlarge |
+| Region | No | AWS region (default: us-east-1) | us-east-1, ap-southeast-1 |
+| OS | No | Operating system (default: Linux) | Linux, Windows |
+| Storage | No | Storage size in GB (default: 100) | 100, 500 |
+| Storage Type | No | Storage type (default: SSD) | SSD, HDD |
+
+**Column Name Variations**: The parser accepts variations like `Instance Name`, `InstanceName`, `instance_name`, or `Name`.
 
 ### Sample Excel Data
 
@@ -69,6 +91,42 @@ api-server-03  | c5.2xlarge    | ap-southeast-1 | Linux   | 200     | SSD
 db-server-01   | r5.large      | eu-west-1      | Linux   | 300     | SSD
 db-server-02   | r5.large      | eu-west-1      | Linux   | 300     | SSD
 ```
+
+### Creating Your Own Excel File
+
+**Option 1: Use the Template**
+1. Download `AWS_Sample.xlsx` from the repository
+2. Open in Excel, Google Sheets, or LibreOffice
+3. Replace sample data with your instances
+4. Save and upload
+
+**Option 2: Create from Scratch**
+1. Create a new Excel file (.xlsx or .xls)
+2. Add column headers in the first row:
+   - `Instance Name`, `Instance Type`, `Region`, `OS`, `Storage`, `Storage Type`
+3. Fill in your instance data (one row per instance)
+4. Save and upload
+
+**Option 3: Generate Programmatically**
+Use the included script to generate a sample file:
+```bash
+cd /home/user/webapp
+node create_sample.cjs
+```
+
+### Excel File Tips
+
+✅ **Do:**
+- Use unique, descriptive instance names
+- Include all required columns (Instance Name, Instance Type)
+- Use valid AWS instance types (see supported types below)
+- Save as .xlsx or .xls format
+
+❌ **Don't:**
+- Use merged cells or complex formatting
+- Leave Instance Type column empty
+- Use special characters in instance names
+- Include a Count column (deprecated in v2.1)
 
 ## Supported AWS Instance Types
 
