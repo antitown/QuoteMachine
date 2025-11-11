@@ -1161,13 +1161,9 @@ app.get('/', (c) => {
                                         </tr>
                                     \`).join('')}
                                     <tr class="bg-blue-50 font-semibold">
-                                        <td colspan="6" class="px-4 py-3 text-right text-sm text-gray-800">Instance Total (PAYG):</td>
+                                        <td colspan="6" class="px-4 py-3 text-right text-sm text-gray-800">Instance Total:</td>
                                         <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-blue-600">$\${quote.pricing.payg.total.toFixed(2)}</td>
                                         <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-green-600">$\${quote.pricing.subscription.total.toFixed(2)}</td>
-                                    </tr>
-                                    <tr class="bg-green-50">
-                                        <td colspan="6" class="px-4 py-3 text-right text-sm text-green-700">Subscription Discount:</td>
-                                        <td colspan="2" class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-green-600">-$\${quote.pricing.subscription.discount.toFixed(2)} (Save \${((quote.pricing.subscription.discount / quote.pricing.payg.total) * 100).toFixed(1)}%)</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1182,20 +1178,83 @@ app.get('/', (c) => {
 
                 quotationDetails.innerHTML = html;
                 
-                // Display total pricing for both models
+                // Calculate totals by type
+                let computePayg = 0, computeSubscription = 0;
+                let storagePayg = 0, storageSubscription = 0;
+                
+                data.quotations.forEach(q => {
+                    q.lineItems.forEach(item => {
+                        if (item.itemType === 'compute') {
+                            computePayg += item.pricing.payg;
+                            computeSubscription += item.pricing.subscription;
+                        } else if (item.itemType === 'storage') {
+                            storagePayg += item.pricing.payg;
+                            storageSubscription += item.pricing.subscription;
+                        }
+                    });
+                });
+                
+                const computeSavings = computePayg - computeSubscription;
+                const storageSavings = storagePayg - storageSubscription;
+                const totalSavings = data.totalPricing.subscription.discount;
+                
+                // Display summary with type breakdown
                 totalCost.innerHTML = \`
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="text-lg text-gray-600">Pay-As-You-Go Total:</span>
-                            <span class="text-2xl font-bold text-blue-600">$\${data.totalPricing.payg.total.toFixed(2)}/month</span>
-                        </div>
-                        <div class="flex justify-between items-center border-t pt-2">
-                            <span class="text-lg text-gray-600">Monthly Subscription Total:</span>
-                            <span class="text-2xl font-bold text-green-600">$\${data.totalPricing.subscription.total.toFixed(2)}/month</span>
-                        </div>
-                        <div class="flex justify-between items-center text-sm">
-                            <span class="text-green-700">You save with subscription:</span>
-                            <span class="font-semibold text-green-700">$\${data.totalPricing.subscription.discount.toFixed(2)} (\${data.totalPricing.subscription.discountPercentage}% discount)</span>
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-bold text-gray-800 border-b pb-2">Cost Summary by Type</h3>
+                        
+                        <!-- Summary Table -->
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">PAYG Total</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subscription Total</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Savings</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr class="hover:bg-blue-50">
+                                    <td class="px-4 py-3 text-sm font-semibold text-gray-900">
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                                            <i class="fas fa-server mr-1"></i> COMPUTE
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-blue-600">$\${computePayg.toFixed(2)}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-green-600">$\${computeSubscription.toFixed(2)}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-green-700">$\${computeSavings.toFixed(2)}</td>
+                                </tr>
+                                <tr class="hover:bg-orange-50">
+                                    <td class="px-4 py-3 text-sm font-semibold text-gray-900">
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                                            <i class="fas fa-hdd mr-1"></i> STORAGE
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-blue-600">$\${storagePayg.toFixed(2)}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-green-600">$\${storageSubscription.toFixed(2)}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-green-700">$\${storageSavings.toFixed(2)}</td>
+                                </tr>
+                                <tr class="bg-gray-100 font-bold">
+                                    <td class="px-4 py-3 text-sm text-gray-900">GRAND TOTAL</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-blue-700">$\${data.totalPricing.payg.total.toFixed(2)}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-green-700">$\${data.totalPricing.subscription.total.toFixed(2)}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-green-700">$\${totalSavings.toFixed(2)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <!-- Savings Highlight -->
+                        <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="text-sm font-semibold text-green-800">Total Savings with Monthly Subscription</p>
+                                    <p class="text-xs text-green-600 mt-1">15% off compute + 10% off storage</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-2xl font-bold text-green-700">$\${totalSavings.toFixed(2)}</p>
+                                    <p class="text-sm text-green-600">(\${data.totalPricing.subscription.discountPercentage}% discount)</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 \`;
@@ -1209,16 +1268,38 @@ app.get('/', (c) => {
 
                 let csvContent = "Quotation ID,Instance Name,AWS Instance,Huawei Instance,Line #,Type,SKU,Description,Specifications,Quantity,PAYG Monthly,Subscription Monthly,Region,Notes\\n";
                 
+                // Calculate totals by type
+                let computePayg = 0, computeSubscription = 0;
+                let storagePayg = 0, storageSubscription = 0;
+                
                 quotationData.quotations.forEach(q => {
                     q.lineItems.forEach(item => {
                         csvContent += \`"\${q.quotationId}","\${q.instanceName}","\${q.awsInstance}","\${q.huaweiInstance}",\${item.lineNumber},"\${item.itemType}","\${item.sku}","\${item.description}","\${item.specifications}",\${item.quantity},\${item.pricing.payg.toFixed(2)},\${item.pricing.subscription.toFixed(2)},"\${item.region}","\${item.notes}"\\n\`;
+                        
+                        // Accumulate by type
+                        if (item.itemType === 'compute') {
+                            computePayg += item.pricing.payg;
+                            computeSubscription += item.pricing.subscription;
+                        } else if (item.itemType === 'storage') {
+                            storagePayg += item.pricing.payg;
+                            storageSubscription += item.pricing.subscription;
+                        }
                     });
-                    // Add instance subtotals
-                    csvContent += \`"\${q.quotationId}","\${q.instanceName}","Instance Total","","","","","","","\${q.pricing.payg.total.toFixed(2)}","\${q.pricing.subscription.total.toFixed(2)}","","Save: $\${q.pricing.subscription.discount.toFixed(2)}"\\n\`;
+                    // Add instance subtotals (without savings)
+                    csvContent += \`"\${q.quotationId}","\${q.instanceName}","Instance Total","","","","","","","\${q.pricing.payg.total.toFixed(2)}","\${q.pricing.subscription.total.toFixed(2)}","",""\\n\`;
                     csvContent += \`\\n\`; // Empty line between instances
                 });
 
-                csvContent += \`\\n"Grand Total (All Instances):","","","","","","","","","\${quotationData.totalPricing.payg.total.toFixed(2)}","\${quotationData.totalPricing.subscription.total.toFixed(2)}","","Subscription Discount: $\${quotationData.totalPricing.subscription.discount.toFixed(2)} (\${quotationData.totalPricing.subscription.discountPercentage}%)"\`;
+                const computeSavings = computePayg - computeSubscription;
+                const storageSavings = storagePayg - storageSubscription;
+                const totalSavings = quotationData.totalPricing.subscription.discount;
+
+                // Add summary section
+                csvContent += \`\\n"=== COST SUMMARY BY TYPE ==="\\n\`;
+                csvContent += \`"Type","PAYG Total","Subscription Total","Savings"\\n\`;
+                csvContent += \`"COMPUTE","\${computePayg.toFixed(2)}","\${computeSubscription.toFixed(2)}","\${computeSavings.toFixed(2)}"\\n\`;
+                csvContent += \`"STORAGE","\${storagePayg.toFixed(2)}","\${storageSubscription.toFixed(2)}","\${storageSavings.toFixed(2)}"\\n\`;
+                csvContent += \`"GRAND TOTAL","\${quotationData.totalPricing.payg.total.toFixed(2)}","\${quotationData.totalPricing.subscription.total.toFixed(2)}","\${totalSavings.toFixed(2)} (\${quotationData.totalPricing.subscription.discountPercentage}%)"\`;
 
                 const blob = new Blob([csvContent], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);
