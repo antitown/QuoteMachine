@@ -1,0 +1,48 @@
+{
+  "storage": {
+    "gp3": {
+      "pricePerGB": 0.08,
+      "description": "General Purpose SSD (gp3)",
+      "iops": "3000 baseline (up to 16,000)",
+      "throughput": "125 MB/s baseline (up to 1,000 MB/s)"
+    },
+    "gp2": {
+      "pricePerGB": 0.10,
+      "description": "General Purpose SSD (gp2)",
+      "iops": "3 IOPS per GB (up to 16,000)",
+      "throughput": "Up to 250 MB/s"
+    },
+    "io2": {
+      "pricePerGB": 0.125,
+      "description": "Provisioned IOPS SSD (io2)",
+      "iops": "Up to 64,000 IOPS",
+      "throughput": "Up to 1,000 MB/s"
+    },
+    "io1": {
+      "pricePerGB": 0.125,
+      "description": "Provisioned IOPS SSD (io1)",
+      "iops": "Up to 64,000 IOPS",
+      "throughput": "Up to 1,000 MB/s"
+    },
+    "st1": {
+      "pricePerGB": 0.045,
+      "description": "Throughput Optimized HDD (st1)",
+      "iops": "Up to 500 IOPS",
+      "throughput": "Up to 500 MB/s"
+    },
+    "sc1": {
+      "pricePerGB": 0.015,
+      "description": "Cold HDD (sc1)",
+      "iops": "Up to 250 IOPS",
+      "throughput": "Up to 250 MB/s"
+    }
+  },
+  "storageMapping": {
+    "SSD": "gp3",
+    "HDD": "st1",
+    "Ultra-high I/O": "io2"
+  },
+  "region": "us-east-1",
+  "lastUpdated": "2025-01-11T00:00:00.000Z",
+  "source": "AWS EBS Pricing - US East (N. Virginia)"
+}

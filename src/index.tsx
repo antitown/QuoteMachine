@@ -86,6 +86,26 @@ const awsPricingData: Record<string, number> = {
   'r6i.xlarge': 0.252,
 }
 
+// AWS EBS Storage Pricing (Updated: 2025-01-11)
+// Source: AWS EBS Pricing Page - US East (N. Virginia)
+const awsEBSPricing = {
+  'gp3': 0.08,  // General Purpose SSD (gp3) - Default
+  'gp2': 0.10,  // General Purpose SSD (gp2)
+  'io2': 0.125, // Provisioned IOPS SSD (io2)
+  'io1': 0.125, // Provisioned IOPS SSD (io1)
+  'st1': 0.045, // Throughput Optimized HDD (st1)
+  'sc1': 0.015  // Cold HDD (sc1)
+}
+
+const awsStorageTypeMapping: Record<string, keyof typeof awsEBSPricing> = {
+  'SSD': 'gp3',
+  'HDD': 'st1',
+  'Ultra-high I/O': 'io2'
+}
+
+// AWS Reserved Instance 1-Year All Upfront Discount (35% savings = 0.65 multiplier)
+const AWS_RI_1Y_DISCOUNT = 0.65
+
 // Huawei Cloud API Configuration
 const HUAWEI_CLOUD_CONFIG = {
   // Use environment variables for production, fallback to provided credentials for testing
@@ -154,7 +174,6 @@ interface QuotationLineItem {
 }
 
 interface HuaweiQuotation {
-  quotationId: string
   generatedAt: string
   instanceName: string
   awsInstance: string
@@ -168,18 +187,34 @@ interface HuaweiQuotation {
   lineItems: QuotationLineItem[]
   pricing: {
     aws: {
-      compute: number
-      storage: number
-      total: number
+      payg: {
+        compute: number
+        storage: number
+        total: number
+      }
+      ri1year: {
+        compute: number
+        storage: number
+        total: number
+      }
     }
-    payg: {
-      subtotal: number
-      total: number
+    huawei: {
+      payg: {
+        compute: number
+        storage: number
+        total: number
+      }
+      commitment1year: {
+        compute: number
+        storage: number
+        total: number
+      }
     }
-    subscription: {
-      subtotal: number
-      total: number
-      discount: number
+    savings: {
+      vsAwsPayg: number
+      vsAwsRI: number
+      savingsPercentVsAwsPayg: number
+      savingsPercentVsAwsRI: number
     }
   }
   priceSource: string
@@ -617,19 +652,34 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
         notes: `High-performance block storage - ${instance.instanceName}`
       })
 
-      // Calculate AWS pricing
+      // Calculate AWS pricing (PAYG and 1-Year RI)
       const awsComputeHourly = awsPricingData[instance.instanceType.toLowerCase()] || 0
-      const awsComputeMonthly = awsComputeHourly * hoursPerMonth
-      const awsStorageMonthly = (instance.storage || 100) * 0.10 // AWS EBS GP3 pricing
-      const awsTotalMonthly = awsComputeMonthly + awsStorageMonthly
-
-      // Calculate totals for both pricing models
-      const paygTotal = lineItems.reduce((sum, item) => sum + item.pricing.payg, 0)
-      const subscriptionTotal = lineItems.reduce((sum, item) => sum + item.pricing.subscription, 0)
-      const discount = paygTotal - subscriptionTotal
+      const awsComputeMonthlyPayg = awsComputeHourly * hoursPerMonth
+      const awsComputeMonthlyRI = awsComputeMonthlyPayg * AWS_RI_1Y_DISCOUNT
+      
+      const awsStorageType = awsStorageTypeMapping[instance.storageType || 'SSD']
+      const awsStoragePricePerGB = awsEBSPricing[awsStorageType]
+      const awsStorageMonthly = (instance.storage || 100) * awsStoragePricePerGB
+      
+      const awsTotalMonthlyPayg = awsComputeMonthlyPayg + awsStorageMonthly
+      const awsTotalMonthlyRI = awsComputeMonthlyRI + awsStorageMonthly
+      
+      // Calculate Huawei pricing
+      const huaweiComputeMonthlyPayg = computePrice * hoursPerMonth
+      const huaweiComputeMonthly1Year = huaweiComputeMonthlyPayg * 0.85 // 15% discount
+      const huaweiStorageMonthlyPayg = storagePrice * (instance.storage || 100)
+      const huaweiStorageMonthly1Year = huaweiStorageMonthlyPayg * 0.90 // 10% discount
+      
+      const huaweiTotalPayg = huaweiComputeMonthlyPayg + huaweiStorageMonthlyPayg
+      const huaweiTotal1Year = huaweiComputeMonthly1Year + huaweiStorageMonthly1Year
+      
+      // Calculate savings vs AWS
+      const savingsVsAwsPayg = awsTotalMonthlyPayg - huaweiTotal1Year
+      const savingsVsAwsRI = awsTotalMonthlyRI - huaweiTotal1Year
+      const savingsPercentVsAwsPayg = (savingsVsAwsPayg / awsTotalMonthlyPayg) * 100
+      const savingsPercentVsAwsRI = (savingsVsAwsRI / awsTotalMonthlyRI) * 100
 
       quotations.push({
-        quotationId: `HW-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         generatedAt: new Date().toISOString(),
         instanceName: instance.instanceName,
         awsInstance: instance.instanceType,
@@ -643,18 +693,34 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
         lineItems,
         pricing: {
           aws: {
-            compute: awsComputeMonthly,
-            storage: awsStorageMonthly,
-            total: awsTotalMonthly
+            payg: {
+              compute: awsComputeMonthlyPayg,
+              storage: awsStorageMonthly,
+              total: awsTotalMonthlyPayg
+            },
+            ri1year: {
+              compute: awsComputeMonthlyRI,
+              storage: awsStorageMonthly,
+              total: awsTotalMonthlyRI
+            }
           },
-          payg: {
-            subtotal: paygTotal,
-            total: paygTotal
+          huawei: {
+            payg: {
+              compute: huaweiComputeMonthlyPayg,
+              storage: huaweiStorageMonthlyPayg,
+              total: huaweiTotalPayg
+            },
+            commitment1year: {
+              compute: huaweiComputeMonthly1Year,
+              storage: huaweiStorageMonthly1Year,
+              total: huaweiTotal1Year
+            }
           },
-          subscription: {
-            subtotal: subscriptionTotal,
-            total: subscriptionTotal,
-            discount: discount
+          savings: {
+            vsAwsPayg: savingsVsAwsPayg,
+            vsAwsRI: savingsVsAwsRI,
+            savingsPercentVsAwsPayg: savingsPercentVsAwsPayg,
+            savingsPercentVsAwsRI: savingsPercentVsAwsRI
           }
         },
         priceSource: refreshPricing ? 'live' : pricingCache.source,
@@ -716,19 +782,34 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       notes: `High-performance block storage - ${instance.instanceName}`
     })
 
-    // Calculate AWS pricing
+    // Calculate AWS pricing (PAYG and 1-Year RI)
     const awsComputeHourly = awsPricingData[instance.instanceType.toLowerCase()] || 0
-    const awsComputeMonthly = awsComputeHourly * hoursPerMonth
-    const awsStorageMonthly = (instance.storage || 100) * 0.10 // AWS EBS GP3 pricing
-    const awsTotalMonthly = awsComputeMonthly + awsStorageMonthly
-
-    // Calculate totals for both pricing models
-    const paygTotal = lineItems.reduce((sum, item) => sum + item.pricing.payg, 0)
-    const subscriptionTotal = lineItems.reduce((sum, item) => sum + item.pricing.subscription, 0)
-    const discount = paygTotal - subscriptionTotal
+    const awsComputeMonthlyPayg = awsComputeHourly * hoursPerMonth
+    const awsComputeMonthlyRI = awsComputeMonthlyPayg * AWS_RI_1Y_DISCOUNT
+    
+    const awsStorageType = awsStorageTypeMapping[instance.storageType || 'SSD']
+    const awsStoragePricePerGB = awsEBSPricing[awsStorageType]
+    const awsStorageMonthly = (instance.storage || 100) * awsStoragePricePerGB
+    
+    const awsTotalMonthlyPayg = awsComputeMonthlyPayg + awsStorageMonthly
+    const awsTotalMonthlyRI = awsComputeMonthlyRI + awsStorageMonthly
+    
+    // Calculate Huawei pricing
+    const huaweiComputeMonthlyPayg = computePrice * hoursPerMonth
+    const huaweiComputeMonthly1Year = huaweiComputeMonthlyPayg * 0.85 // 15% discount
+    const huaweiStorageMonthlyPayg = storagePrice * (instance.storage || 100)
+    const huaweiStorageMonthly1Year = huaweiStorageMonthlyPayg * 0.90 // 10% discount
+    
+    const huaweiTotalPayg = huaweiComputeMonthlyPayg + huaweiStorageMonthlyPayg
+    const huaweiTotal1Year = huaweiComputeMonthly1Year + huaweiStorageMonthly1Year
+    
+    // Calculate savings vs AWS
+    const savingsVsAwsPayg = awsTotalMonthlyPayg - huaweiTotal1Year
+    const savingsVsAwsRI = awsTotalMonthlyRI - huaweiTotal1Year
+    const savingsPercentVsAwsPayg = (savingsVsAwsPayg / awsTotalMonthlyPayg) * 100
+    const savingsPercentVsAwsRI = (savingsVsAwsRI / awsTotalMonthlyRI) * 100
 
     quotations.push({
-      quotationId: `HW-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       generatedAt: new Date().toISOString(),
       instanceName: instance.instanceName,
       awsInstance: instance.instanceType,
@@ -742,18 +823,34 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       lineItems,
       pricing: {
         aws: {
-          compute: awsComputeMonthly,
-          storage: awsStorageMonthly,
-          total: awsTotalMonthly
+          payg: {
+            compute: awsComputeMonthlyPayg,
+            storage: awsStorageMonthly,
+            total: awsTotalMonthlyPayg
+          },
+          ri1year: {
+            compute: awsComputeMonthlyRI,
+            storage: awsStorageMonthly,
+            total: awsTotalMonthlyRI
+          }
         },
-        payg: {
-          subtotal: paygTotal,
-          total: paygTotal
+        huawei: {
+          payg: {
+            compute: huaweiComputeMonthlyPayg,
+            storage: huaweiStorageMonthlyPayg,
+            total: huaweiTotalPayg
+          },
+          commitment1year: {
+            compute: huaweiComputeMonthly1Year,
+            storage: huaweiStorageMonthly1Year,
+            total: huaweiTotal1Year
+          }
         },
-        subscription: {
-          subtotal: subscriptionTotal,
-          total: subscriptionTotal,
-          discount: discount
+        savings: {
+          vsAwsPayg: savingsVsAwsPayg,
+          vsAwsRI: savingsVsAwsRI,
+          savingsPercentVsAwsPayg: savingsPercentVsAwsPayg,
+          savingsPercentVsAwsRI: savingsPercentVsAwsRI
         }
       },
       priceSource: refreshPricing ? 'live' : pricingCache.source,
@@ -960,32 +1057,43 @@ app.post('/api/process', async (c) => {
     const quotations = await generateQuotation(instances, false)
     
     // Calculate grand totals for all pricing models
-    const grandTotalAws = quotations.reduce((sum, q) => sum + q.pricing.aws.total, 0)
-    const grandTotalAwsCompute = quotations.reduce((sum, q) => sum + q.pricing.aws.compute, 0)
-    const grandTotalAwsStorage = quotations.reduce((sum, q) => sum + q.pricing.aws.storage, 0)
-    const grandTotalPayg = quotations.reduce((sum, q) => sum + q.pricing.payg.total, 0)
-    const grandTotalSubscription = quotations.reduce((sum, q) => sum + q.pricing.subscription.total, 0)
-    const grandDiscount = grandTotalPayg - grandTotalSubscription
+    const grandTotalAwsPayg = quotations.reduce((sum, q) => sum + q.pricing.aws.payg.total, 0)
+    const grandTotalAwsRI = quotations.reduce((sum, q) => sum + q.pricing.aws.ri1year.total, 0)
+    const grandTotalHuaweiPayg = quotations.reduce((sum, q) => sum + q.pricing.huawei.payg.total, 0)
+    const grandTotalHuawei1Year = quotations.reduce((sum, q) => sum + q.pricing.huawei.commitment1year.total, 0)
+    
+    const savingsVsAwsPayg = grandTotalAwsPayg - grandTotalHuawei1Year
+    const savingsVsAwsRI = grandTotalAwsRI - grandTotalHuawei1Year
 
     return c.json({
       success: true,
       quotations,
       totalPricing: {
         aws: {
-          compute: grandTotalAwsCompute,
-          storage: grandTotalAwsStorage,
-          total: grandTotalAws,
-          perMonth: grandTotalAws
+          payg: {
+            total: grandTotalAwsPayg,
+            perMonth: grandTotalAwsPayg
+          },
+          ri1year: {
+            total: grandTotalAwsRI,
+            perMonth: grandTotalAwsRI
+          }
         },
-        payg: {
-          total: grandTotalPayg,
-          perMonth: grandTotalPayg
+        huawei: {
+          payg: {
+            total: grandTotalHuaweiPayg,
+            perMonth: grandTotalHuaweiPayg
+          },
+          commitment1year: {
+            total: grandTotalHuawei1Year,
+            perMonth: grandTotalHuawei1Year
+          }
         },
-        subscription: {
-          total: grandTotalSubscription,
-          perMonth: grandTotalSubscription,
-          discount: grandDiscount,
-          discountPercentage: ((grandDiscount / grandTotalPayg) * 100).toFixed(1)
+        savings: {
+          vsAwsPayg: savingsVsAwsPayg,
+          vsAwsRI: savingsVsAwsRI,
+          savingsPercentVsAwsPayg: ((savingsVsAwsPayg / grandTotalAwsPayg) * 100).toFixed(1),
+          savingsPercentVsAwsRI: ((savingsVsAwsRI / grandTotalAwsRI) * 100).toFixed(1)
         }
       },
       currency: 'USD',
@@ -1484,6 +1592,30 @@ app.get('/', (c) => {
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Pricing Comparison Card -->
+                            <div class="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-lg mb-4">
+                                <h4 class="font-semibold text-gray-800 mb-3">Monthly Cost Comparison</h4>
+                                <div class="grid grid-cols-4 gap-4 text-center">
+                                    <div class="bg-white p-3 rounded shadow-sm">
+                                        <p class="text-xs text-gray-500 mb-1">AWS PAYG</p>
+                                        <p class="text-lg font-bold text-gray-800">$\${quote.pricing.aws.payg.total.toFixed(2)}</p>
+                                    </div>
+                                    <div class="bg-white p-3 rounded shadow-sm">
+                                        <p class="text-xs text-gray-500 mb-1">AWS 1Y RI</p>
+                                        <p class="text-lg font-bold text-blue-600">$\${quote.pricing.aws.ri1year.total.toFixed(2)}</p>
+                                    </div>
+                                    <div class="bg-white p-3 rounded shadow-sm">
+                                        <p class="text-xs text-gray-500 mb-1">Huawei PAYG</p>
+                                        <p class="text-lg font-bold text-gray-700">$\${quote.pricing.huawei.payg.total.toFixed(2)}</p>
+                                    </div>
+                                    <div class="bg-green-100 p-3 rounded shadow-sm border-2 border-green-500">
+                                        <p class="text-xs text-green-700 mb-1 font-semibold">Huawei 1Y</p>
+                                        <p class="text-lg font-bold text-green-700">$\${quote.pricing.huawei.commitment1year.total.toFixed(2)}</p>
+                                        <p class="text-xs text-green-600 mt-1">\${quote.pricing.savings.savingsPercentVsAwsPayg.toFixed(1)}% vs AWS</p>
+                                    </div>
+                                </div>
+                            </div>
 
                             <table class="min-w-full divide-y divide-gray-200 mb-4">
                                 <thead class="bg-gray-50">
@@ -1494,8 +1626,8 @@ app.get('/', (c) => {
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Specifications</th>
                                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">PAYG/Month</th>
-                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subscription/Month</th>
+                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Huawei PAYG</th>
+                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Huawei 1Y</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
@@ -1517,14 +1649,13 @@ app.get('/', (c) => {
                                     \`).join('')}
                                     <tr class="bg-blue-50 font-semibold">
                                         <td colspan="6" class="px-4 py-3 text-right text-sm text-gray-800">Instance Total:</td>
-                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-blue-600">$\${quote.pricing.payg.total.toFixed(2)}</td>
-                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-green-600">$\${quote.pricing.subscription.total.toFixed(2)}</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-gray-700">$\${quote.pricing.huawei.payg.total.toFixed(2)}</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-green-600">$\${quote.pricing.huawei.commitment1year.total.toFixed(2)}</td>
                                     </tr>
                                 </tbody>
                             </table>
 
                             <div class="text-xs text-gray-500 mt-2">
-                                <p>Quotation ID: \${quote.quotationId}</p>
                                 <p>Region: \${quote.region} | OS: \${quote.os} | Price Source: \${quote.priceSource.toUpperCase()}</p>
                             </div>
                         </div>
@@ -1533,83 +1664,146 @@ app.get('/', (c) => {
 
                 quotationDetails.innerHTML = html;
                 
-                // Calculate totals by type
-                let computePayg = 0, computeSubscription = 0;
-                let storagePayg = 0, storageSubscription = 0;
-                
-                data.quotations.forEach(q => {
-                    q.lineItems.forEach(item => {
-                        if (item.itemType === 'compute') {
-                            computePayg += item.pricing.payg;
-                            computeSubscription += item.pricing.subscription;
-                        } else if (item.itemType === 'storage') {
-                            storagePayg += item.pricing.payg;
-                            storageSubscription += item.pricing.subscription;
-                        }
-                    });
-                });
-                
-                const computeSavings = computePayg - computeSubscription;
-                const storageSavings = storagePayg - storageSubscription;
-                const totalSavings = data.totalPricing.subscription.discount;
-                
-                // Display summary with type breakdown
+                // Display summary with all pricing models comparison
                 totalCost.innerHTML = \`
-                    <div class="space-y-4">
-                        <h3 class="text-lg font-bold text-gray-800 border-b pb-2">Cost Summary by Type</h3>
+                    <div class="space-y-6">
+                        <h3 class="text-xl font-bold text-gray-800 border-b-2 pb-2">All Pricing Models Comparison</h3>
                         
-                        <!-- Summary Table -->
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
+                        <!-- Pricing Comparison Table -->
+                        <table class="min-w-full divide-y divide-gray-200 border">
+                            <thead class="bg-gray-100">
                                 <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">PAYG Total</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subscription Total</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Savings</th>
+                                    <th class="px-6 py-4 text-left text-sm font-bold text-gray-700 uppercase">Provider & Model</th>
+                                    <th class="px-6 py-4 text-right text-sm font-bold text-gray-700 uppercase">Monthly Cost</th>
+                                    <th class="px-6 py-4 text-right text-sm font-bold text-gray-700 uppercase">vs Best Price</th>
+                                    <th class="px-6 py-4 text-center text-sm font-bold text-gray-700 uppercase">Status</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
+                                <tr class="hover:bg-red-50">
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center">
+                                            <i class="fab fa-aws text-orange-500 text-xl mr-3"></i>
+                                            <div>
+                                                <p class="font-semibold text-gray-900">AWS Pay-As-You-Go</p>
+                                                <p class="text-xs text-gray-500">On-demand pricing</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <p class="text-lg font-bold text-gray-900">$\${data.totalPricing.aws.payg.total.toFixed(2)}</p>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <p class="text-sm font-semibold text-red-600">+$\${data.totalPricing.savings.vsAwsPayg.toFixed(2)}</p>
+                                        <p class="text-xs text-red-500">(\${data.totalPricing.savings.savingsPercentVsAwsPayg}% more)</p>
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                                            Most Expensive
+                                        </span>
+                                    </td>
+                                </tr>
                                 <tr class="hover:bg-blue-50">
-                                    <td class="px-4 py-3 text-sm font-semibold text-gray-900">
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                                            <i class="fas fa-server mr-1"></i> COMPUTE
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center">
+                                            <i class="fab fa-aws text-blue-500 text-xl mr-3"></i>
+                                            <div>
+                                                <p class="font-semibold text-gray-900">AWS 1-Year Reserved Instance</p>
+                                                <p class="text-xs text-gray-500">35% discount (All Upfront)</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <p class="text-lg font-bold text-blue-700">$\${data.totalPricing.aws.ri1year.total.toFixed(2)}</p>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <p class="text-sm font-semibold text-orange-600">+$\${data.totalPricing.savings.vsAwsRI.toFixed(2)}</p>
+                                        <p class="text-xs text-orange-500">(\${data.totalPricing.savings.savingsPercentVsAwsRI}% more)</p>
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                                            AWS Best Price
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-blue-600">$\${computePayg.toFixed(2)}</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-green-600">$\${computeSubscription.toFixed(2)}</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-green-700">$\${computeSavings.toFixed(2)}</td>
                                 </tr>
-                                <tr class="hover:bg-orange-50">
-                                    <td class="px-4 py-3 text-sm font-semibold text-gray-900">
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
-                                            <i class="fas fa-hdd mr-1"></i> STORAGE
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-cloud text-gray-500 text-xl mr-3"></i>
+                                            <div>
+                                                <p class="font-semibold text-gray-900">Huawei Cloud Pay-As-You-Go</p>
+                                                <p class="text-xs text-gray-500">On-demand pricing</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <p class="text-lg font-bold text-gray-700">$\${data.totalPricing.huawei.payg.total.toFixed(2)}</p>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <p class="text-sm font-semibold text-green-600">-$\${(data.totalPricing.aws.payg.total - data.totalPricing.huawei.payg.total).toFixed(2)}</p>
+                                        <p class="text-xs text-green-500">(vs AWS PAYG)</p>
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                                            Competitive
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-blue-600">$\${storagePayg.toFixed(2)}</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-green-600">$\${storageSubscription.toFixed(2)}</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-green-700">$\${storageSavings.toFixed(2)}</td>
                                 </tr>
-                                <tr class="bg-gray-100 font-bold">
-                                    <td class="px-4 py-3 text-sm text-gray-900">GRAND TOTAL</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-blue-700">$\${data.totalPricing.payg.total.toFixed(2)}</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-green-700">$\${data.totalPricing.subscription.total.toFixed(2)}</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-green-700">$\${totalSavings.toFixed(2)}</td>
+                                <tr class="bg-green-50 hover:bg-green-100 border-2 border-green-400">
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-cloud text-green-600 text-xl mr-3"></i>
+                                            <div>
+                                                <p class="font-bold text-green-800">Huawei Cloud 1-Year Commitment</p>
+                                                <p class="text-xs text-green-600 font-semibold">15% compute + 10% storage discount</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <p class="text-2xl font-bold text-green-700">$\${data.totalPricing.huawei.commitment1year.total.toFixed(2)}</p>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <p class="text-lg font-bold text-green-700">BEST PRICE</p>
+                                        <p class="text-xs text-green-600">Baseline for comparison</p>
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <span class="px-4 py-2 rounded-full text-sm font-bold bg-green-600 text-white">
+                                            ⭐ RECOMMENDED
+                                        </span>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
                         
                         <!-- Savings Highlight -->
-                        <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <p class="text-sm font-semibold text-green-800">Total Savings with Monthly Subscription</p>
-                                    <p class="text-xs text-green-600 mt-1">15% off compute + 10% off storage</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-2xl font-bold text-green-700">$\${totalSavings.toFixed(2)}</p>
-                                    <p class="text-sm text-green-600">(\${data.totalPricing.subscription.discountPercentage}% discount)</p>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-500 p-6 rounded-lg">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-semibold text-green-800 mb-2">Savings vs AWS PAYG</p>
+                                        <p class="text-3xl font-bold text-green-700">$\${data.totalPricing.savings.vsAwsPayg.toFixed(2)}</p>
+                                        <p class="text-lg text-green-600 mt-1">\${data.totalPricing.savings.savingsPercentVsAwsPayg}% cheaper</p>
+                                    </div>
+                                    <i class="fas fa-piggy-bank text-5xl text-green-600 opacity-50"></i>
                                 </div>
                             </div>
+                            <div class="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-500 p-6 rounded-lg">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-semibold text-blue-800 mb-2">Savings vs AWS 1Y RI</p>
+                                        <p class="text-3xl font-bold text-blue-700">$\${data.totalPricing.savings.vsAwsRI.toFixed(2)}</p>
+                                        <p class="text-lg text-blue-600 mt-1">\${data.totalPricing.savings.savingsPercentVsAwsRI}% cheaper</p>
+                                    </div>
+                                    <i class="fas fa-chart-line text-5xl text-blue-600 opacity-50"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+                            <p class="text-sm font-semibold text-yellow-800">
+                                <i class="fas fa-lightbulb mr-2"></i>
+                                Recommendation: Choose Huawei Cloud 1-Year Commitment for maximum savings of $\${data.totalPricing.savings.vsAwsPayg.toFixed(2)}/month compared to AWS on-demand pricing.
+                            </p>
                         </div>
                     </div>
                 \`;
@@ -1620,136 +1814,95 @@ app.get('/', (c) => {
 
             downloadBtn.addEventListener('click', () => {
                 if (!quotationData) return;
-
-                // Calculate totals by type
-                let computePayg = 0, computeSubscription = 0;
-                let storagePayg = 0, storageSubscription = 0;
                 
-                // Sheet 1: Detailed Line Items (without savings column)
+                // Sheet 1: Detailed Line Items with ALL pricing models
                 const detailRows = [];
-                detailRows.push(['Quotation ID', 'Instance Name', 'AWS Instance', 'Huawei Instance', 'Line #', 'Type', 'SKU', 'Description', 'Specifications', 'Quantity', 'PAYG Monthly (USD)', 'Subscription Monthly (USD)', 'Region', 'Notes']);
+                detailRows.push(['Instance Name', 'AWS Instance', 'Huawei Instance', 'vCPU', 'Memory (GB)', 'Storage (GB)', 'Storage Type', 'AWS PAYG Monthly', 'AWS 1Y RI Monthly', 'Huawei PAYG Monthly', 'Huawei 1Y Commitment', 'Savings vs AWS PAYG', 'Savings %', 'Region', 'OS']);
                 
                 quotationData.quotations.forEach(q => {
-                    q.lineItems.forEach(item => {
-                        detailRows.push([
-                            q.quotationId,
-                            q.instanceName,
-                            q.awsInstance,
-                            q.huaweiInstance,
-                            item.lineNumber,
-                            item.itemType.toUpperCase(),
-                            item.sku,
-                            item.description,
-                            item.specifications,
-                            item.quantity,
-                            parseFloat(item.pricing.payg.toFixed(2)),
-                            parseFloat(item.pricing.subscription.toFixed(2)),
-                            item.region,
-                            item.notes
-                        ]);
-                        
-                        // Accumulate by type
-                        if (item.itemType === 'compute') {
-                            computePayg += item.pricing.payg;
-                            computeSubscription += item.pricing.subscription;
-                        } else if (item.itemType === 'storage') {
-                            storagePayg += item.pricing.payg;
-                            storageSubscription += item.pricing.subscription;
-                        }
-                    });
-                    // Add instance subtotal row (without savings)
                     detailRows.push([
-                        q.quotationId,
-                        q.instanceName + ' - SUBTOTAL',
-                        '',
-                        '',
-                        '',
-                        '',
-                        '',
-                        '',
-                        '',
-                        '',
-                        parseFloat(q.pricing.payg.total.toFixed(2)),
-                        parseFloat(q.pricing.subscription.total.toFixed(2)),
-                        '',
-                        ''
+                        q.instanceName,
+                        q.awsInstance,
+                        q.huaweiInstance,
+                        q.vcpu,
+                        q.memory,
+                        q.storage,
+                        q.storageType,
+                        parseFloat(q.pricing.aws.payg.total.toFixed(2)),
+                        parseFloat(q.pricing.aws.ri1year.total.toFixed(2)),
+                        parseFloat(q.pricing.huawei.payg.total.toFixed(2)),
+                        parseFloat(q.pricing.huawei.commitment1year.total.toFixed(2)),
+                        parseFloat(q.pricing.savings.vsAwsPayg.toFixed(2)),
+                        q.pricing.savings.savingsPercentVsAwsPayg.toFixed(1) + '%',
+                        q.region,
+                        q.os
                     ]);
-                    detailRows.push([]); // Empty row between instances
                 });
 
-                const computeSavings = computePayg - computeSubscription;
-                const storageSavings = storagePayg - storageSubscription;
-                const totalSavings = quotationData.totalPricing.subscription.discount;
-                
-                // Calculate AWS totals by type
-                let awsComputeTotal = 0, awsStorageTotal = 0;
-                quotationData.quotations.forEach(q => {
-                    awsComputeTotal += q.pricing.aws.compute;
-                    awsStorageTotal += q.pricing.aws.storage;
-                });
-
-                // Sheet 2: Summary Page with AWS vs Huawei pricing comparison
+                // Sheet 2: Summary Page with ALL pricing model comparison
                 const summaryRows = [];
-                summaryRows.push(['AWS vs HUAWEI CLOUD COST ESTIMATE COMPARISON']);
+                summaryRows.push(['AWS TO HUAWEI CLOUD COST COMPARISON - ALL PRICING MODELS']);
                 summaryRows.push([]);
                 summaryRows.push(['Generated Date:', new Date(quotationData.generatedAt).toLocaleString()]);
                 summaryRows.push(['Currency:', 'USD']);
                 summaryRows.push(['Price Source:', quotationData.priceSource]);
+                summaryRows.push(['Total Instances:', quotationData.quotations.length]);
                 summaryRows.push([]);
-                summaryRows.push(['COST COMPARISON BY TYPE']);
+                summaryRows.push(['PRICING MODEL COMPARISON']);
                 summaryRows.push([]);
-                summaryRows.push(['Type', 'AWS Monthly (USD)', 'Huawei PAYG (USD)', 'Huawei Subscription (USD)', 'vs AWS Savings', 'Savings (%)']);
+                summaryRows.push(['Provider & Model', 'Monthly Cost (USD)', 'vs Best Price', 'Discount %', 'Notes']);
                 summaryRows.push([
-                    'COMPUTE',
-                    parseFloat(awsComputeTotal.toFixed(2)),
-                    parseFloat(computePayg.toFixed(2)),
-                    parseFloat(computeSubscription.toFixed(2)),
-                    parseFloat((awsComputeTotal - computeSubscription).toFixed(2)),
-                    ((awsComputeTotal - computeSubscription) / awsComputeTotal * 100).toFixed(1) + '%'
+                    'AWS Pay-As-You-Go',
+                    parseFloat(quotationData.totalPricing.aws.payg.total.toFixed(2)),
+                    parseFloat(quotationData.totalPricing.savings.vsAwsPayg.toFixed(2)),
+                    quotationData.totalPricing.savings.savingsPercentVsAwsPayg + '%',
+                    'On-demand pricing (most expensive)'
                 ]);
                 summaryRows.push([
-                    'STORAGE',
-                    parseFloat(awsStorageTotal.toFixed(2)),
-                    parseFloat(storagePayg.toFixed(2)),
-                    parseFloat(storageSubscription.toFixed(2)),
-                    parseFloat((awsStorageTotal - storageSubscription).toFixed(2)),
-                    ((awsStorageTotal - storageSubscription) / awsStorageTotal * 100).toFixed(1) + '%'
+                    'AWS 1-Year Reserved Instance',
+                    parseFloat(quotationData.totalPricing.aws.ri1year.total.toFixed(2)),
+                    parseFloat(quotationData.totalPricing.savings.vsAwsRI.toFixed(2)),
+                    quotationData.totalPricing.savings.savingsPercentVsAwsRI + '%',
+                    '35% discount, All Upfront payment'
+                ]);
+                summaryRows.push([
+                    'Huawei Cloud Pay-As-You-Go',
+                    parseFloat(quotationData.totalPricing.huawei.payg.total.toFixed(2)),
+                    parseFloat((quotationData.totalPricing.aws.payg.total - quotationData.totalPricing.huawei.payg.total).toFixed(2)),
+                    (((quotationData.totalPricing.aws.payg.total - quotationData.totalPricing.huawei.payg.total) / quotationData.totalPricing.aws.payg.total) * 100).toFixed(1) + '%',
+                    'On-demand pricing (vs AWS PAYG)'
+                ]);
+                summaryRows.push([
+                    'Huawei Cloud 1-Year Commitment',
+                    parseFloat(quotationData.totalPricing.huawei.commitment1year.total.toFixed(2)),
+                    'BEST PRICE',
+                    'Baseline',
+                    '15% compute + 10% storage discount (RECOMMENDED)'
                 ]);
                 summaryRows.push([]);
+                summaryRows.push(['SAVINGS BREAKDOWN VS AWS']);
+                summaryRows.push([]);
+                summaryRows.push(['Comparison', 'AWS Cost', 'Huawei 1Y Cost', 'Monthly Savings', 'Annual Savings', 'Savings %']);
                 summaryRows.push([
-                    'GRAND TOTAL',
-                    parseFloat(quotationData.totalPricing.aws.total.toFixed(2)),
-                    parseFloat(quotationData.totalPricing.payg.total.toFixed(2)),
-                    parseFloat(quotationData.totalPricing.subscription.total.toFixed(2)),
-                    parseFloat((quotationData.totalPricing.aws.total - quotationData.totalPricing.subscription.total).toFixed(2)),
-                    ((quotationData.totalPricing.aws.total - quotationData.totalPricing.subscription.total) / quotationData.totalPricing.aws.total * 100).toFixed(1) + '%'
+                    'vs AWS PAYG',
+                    parseFloat(quotationData.totalPricing.aws.payg.total.toFixed(2)),
+                    parseFloat(quotationData.totalPricing.huawei.commitment1year.total.toFixed(2)),
+                    parseFloat(quotationData.totalPricing.savings.vsAwsPayg.toFixed(2)),
+                    parseFloat((quotationData.totalPricing.savings.vsAwsPayg * 12).toFixed(2)),
+                    quotationData.totalPricing.savings.savingsPercentVsAwsPayg + '%'
+                ]);
+                summaryRows.push([
+                    'vs AWS 1Y RI',
+                    parseFloat(quotationData.totalPricing.aws.ri1year.total.toFixed(2)),
+                    parseFloat(quotationData.totalPricing.huawei.commitment1year.total.toFixed(2)),
+                    parseFloat(quotationData.totalPricing.savings.vsAwsRI.toFixed(2)),
+                    parseFloat((quotationData.totalPricing.savings.vsAwsRI * 12).toFixed(2)),
+                    quotationData.totalPricing.savings.savingsPercentVsAwsRI + '%'
                 ]);
                 summaryRows.push([]);
-                summaryRows.push(['RECOMMENDATION: Huawei Cloud Subscription saves ' + ((quotationData.totalPricing.aws.total - quotationData.totalPricing.subscription.total) / quotationData.totalPricing.aws.total * 100).toFixed(1) + '% compared to AWS']);
-                summaryRows.push([]);
-                summaryRows.push(['INTERNAL HUAWEI SAVINGS']);
-                summaryRows.push(['Type', 'PAYG Monthly (USD)', 'Subscription Monthly (USD)', 'Savings (USD)', 'Savings (%)']);
-                summaryRows.push([
-                    'COMPUTE',
-                    parseFloat(computePayg.toFixed(2)),
-                    parseFloat(computeSubscription.toFixed(2)),
-                    parseFloat(computeSavings.toFixed(2)),
-                    ((computeSavings / computePayg) * 100).toFixed(1) + '%'
-                ]);
-                summaryRows.push([
-                    'STORAGE',
-                    parseFloat(storagePayg.toFixed(2)),
-                    parseFloat(storageSubscription.toFixed(2)),
-                    parseFloat(storageSavings.toFixed(2)),
-                    ((storageSavings / storagePayg) * 100).toFixed(1) + '%'
-                ]);
-                summaryRows.push([
-                    'TOTAL',
-                    parseFloat(quotationData.totalPricing.payg.total.toFixed(2)),
-                    parseFloat(quotationData.totalPricing.subscription.total.toFixed(2)),
-                    parseFloat(totalSavings.toFixed(2)),
-                    quotationData.totalPricing.subscription.discountPercentage + '%'
-                ]);
+                summaryRows.push(['RECOMMENDATION']);
+                summaryRows.push(['Huawei Cloud 1-Year Commitment offers the best value with savings of $' + quotationData.totalPricing.savings.vsAwsPayg.toFixed(2) + '/month (' + quotationData.totalPricing.savings.savingsPercentVsAwsPayg + '%) compared to AWS on-demand pricing.']);
+                summaryRows.push(['Annual savings: $' + (quotationData.totalPricing.savings.vsAwsPayg * 12).toFixed(2) + ' compared to AWS PAYG']);
 
                 // Create workbook with two sheets
                 const wb = XLSX.utils.book_new();
@@ -1758,28 +1911,29 @@ app.get('/', (c) => {
                 
                 // Set column widths for better readability
                 ws1['!cols'] = [
-                    {wch: 20}, // Quotation ID
-                    {wch: 20}, // Instance Name
+                    {wch: 25}, // Instance Name
                     {wch: 15}, // AWS Instance
-                    {wch: 15}, // Huawei Instance
-                    {wch: 8},  // Line #
-                    {wch: 10}, // Type
-                    {wch: 20}, // SKU
-                    {wch: 35}, // Description
-                    {wch: 25}, // Specifications
-                    {wch: 10}, // Quantity
-                    {wch: 18}, // PAYG Monthly
-                    {wch: 22}, // Subscription Monthly
+                    {wch: 18}, // Huawei Instance
+                    {wch: 8},  // vCPU
+                    {wch: 12}, // Memory (GB)
+                    {wch: 12}, // Storage (GB)
+                    {wch: 15}, // Storage Type
+                    {wch: 18}, // AWS PAYG Monthly
+                    {wch: 20}, // AWS 1Y RI Monthly
+                    {wch: 22}, // Huawei PAYG Monthly
+                    {wch: 22}, // Huawei 1Y Commitment
+                    {wch: 18}, // Savings vs AWS PAYG
+                    {wch: 12}, // Savings %
                     {wch: 15}, // Region
-                    {wch: 50}  // Notes
+                    {wch: 12}  // OS
                 ];
                 
                 ws2['!cols'] = [
-                    {wch: 20}, // Type/Label
-                    {wch: 20}, // AWS Monthly
-                    {wch: 22}, // Huawei PAYG
-                    {wch: 25}, // Huawei Subscription
-                    {wch: 18}, // vs AWS Savings
+                    {wch: 35}, // Provider & Model / Labels
+                    {wch: 20}, // Monthly Cost
+                    {wch: 20}, // vs Best Price / Huawei 1Y Cost
+                    {wch: 18}, // Discount % / Monthly Savings
+                    {wch: 18}, // Notes / Annual Savings
                     {wch: 15}  // Savings %
                 ];
                 

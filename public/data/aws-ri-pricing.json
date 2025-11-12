@@ -1,0 +1,20 @@
+{
+  "reservedInstanceDiscount": {
+    "1year_noUpfront": 0.60,
+    "1year_partialUpfront": 0.62,
+    "1year_allUpfront": 0.65,
+    "3year_noUpfront": 0.38,
+    "3year_partialUpfront": 0.36,
+    "3year_allUpfront": 0.33
+  },
+  "defaultDiscount": "1year_allUpfront",
+  "description": "AWS Reserved Instance pricing represents percentage of on-demand price. 1-year All Upfront typically costs 65% of on-demand (35% savings)",
+  "notes": [
+    "No Upfront: Pay nothing upfront, monthly charges",
+    "Partial Upfront: Pay portion upfront, reduced monthly charges",
+    "All Upfront: Pay entire 1-year cost upfront, lowest total cost"
+  ],
+  "region": "us-east-1",
+  "lastUpdated": "2025-01-11T00:00:00.000Z",
+  "source": "AWS EC2 Reserved Instance Pricing"
+}
