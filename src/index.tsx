@@ -1040,7 +1040,7 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AWS to Huawei Cloud Quotation Generator</title>
+        <title>AWS to Huawei Cloud Estimate Generator</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1052,9 +1052,9 @@ app.get('/', (c) => {
                 <div class="text-center mb-8">
                     <h1 class="text-4xl font-bold text-gray-800 mb-2">
                         <i class="fas fa-cloud-upload-alt text-blue-600 mr-3"></i>
-                        AWS to Huawei Cloud Quotation
+                        AWS to Huawei Cloud Estimate
                     </h1>
-                    <p class="text-gray-600">Upload your AWS EC2 Excel file to generate a Huawei Cloud quotation with separate compute and storage SKUs</p>
+                    <p class="text-gray-600">Upload your AWS EC2 Excel file to generate a Huawei Cloud cost estimate with separate compute and storage SKUs</p>
                 </div>
 
                 <!-- Pricing Info Panel -->
@@ -1090,9 +1090,16 @@ app.get('/', (c) => {
                             <i class="fas fa-file-excel text-green-600 mr-2"></i>
                             Upload Excel File
                         </h2>
-                        <p class="text-sm text-gray-600 mb-4">
+                        <p class="text-sm text-gray-600 mb-2">
                             Excel file should contain columns: <strong>Instance Name</strong>, <strong>Instance Type</strong>, <strong>Region</strong>, <strong>OS</strong>, <strong>Storage</strong>, <strong>Storage Type</strong> (one row per instance)
                         </p>
+                        <div class="mb-4">
+                            <a href="https://github.com/antitown/QuoteMachine/raw/main/AWS_Sample.xlsx" target="_blank" class="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm font-semibold">
+                                <i class="fas fa-download mr-2"></i>
+                                Download Excel Template (Sample)
+                            </a>
+                            <span class="text-xs text-gray-500 ml-2">- Contains sample data with 9 AWS instances</span>
+                        </div>
                         
                         <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
                             <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden" />
@@ -1114,7 +1121,7 @@ app.get('/', (c) => {
                         
                         <button id="processBtn" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
                             <i class="fas fa-calculator mr-2"></i>
-                            Generate Quotation
+                            Generate Estimate
                         </button>
                     </div>
                 </div>
@@ -1132,7 +1139,7 @@ app.get('/', (c) => {
                     <div class="flex items-center justify-between mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">
                             <i class="fas fa-chart-line text-purple-600 mr-2"></i>
-                            Detailed Quotation
+                            Detailed Estimate
                         </h2>
                         <div class="text-sm text-gray-600">
                             Generated: <span id="generatedAt"></span>
@@ -1149,7 +1156,7 @@ app.get('/', (c) => {
                     <div class="mt-6 flex gap-4">
                         <button id="downloadBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
                             <i class="fas fa-download mr-2"></i>
-                            Download Quotation (Excel)
+                            Download Estimate (Excel)
                         </button>
                         <button id="resetBtn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
                             <i class="fas fa-redo mr-2"></i>
@@ -1175,19 +1182,25 @@ app.get('/', (c) => {
                 
                 <div class="mb-4">
                     <p class="text-sm text-gray-600">
-                        Edit the mappings between AWS and Huawei Cloud instance types. Changes are saved in memory and will be used for quotation generation.
+                        Edit the mappings between AWS and Huawei Cloud instance types. Changes are saved in memory and will be used for cost estimate generation.
                     </p>
                 </div>
                 
-                <div class="mb-4 flex justify-end gap-3">
-                    <button id="saveMappingsBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-                        <i class="fas fa-save mr-2"></i>
-                        Save Changes
+                <div class="mb-4 flex justify-between items-center">
+                    <button id="addMappingBtn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                        <i class="fas fa-plus mr-2"></i>
+                        Add New Mapping
                     </button>
-                    <button id="reloadMappingsBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-                        <i class="fas fa-sync-alt mr-2"></i>
-                        Reload
-                    </button>
+                    <div class="flex gap-3">
+                        <button id="saveMappingsBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                            <i class="fas fa-save mr-2"></i>
+                            Save Changes
+                        </button>
+                        <button id="reloadMappingsBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                            <i class="fas fa-sync-alt mr-2"></i>
+                            Reload
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="overflow-x-auto">
@@ -1361,6 +1374,53 @@ app.get('/', (c) => {
 
             reloadMappingsBtn.addEventListener('click', () => {
                 loadMappings();
+            });
+
+            const addMappingBtn = document.getElementById('addMappingBtn');
+            addMappingBtn.addEventListener('click', () => {
+                const awsInstance = prompt('Enter AWS instance type (e.g., t3.nano, m5.24xlarge):');
+                if (!awsInstance || awsInstance.trim() === '') {
+                    return;
+                }
+                
+                const trimmedInstance = awsInstance.trim().toLowerCase();
+                
+                if (currentMappings[trimmedInstance]) {
+                    alert(\`Mapping for \${trimmedInstance} already exists!\`);
+                    return;
+                }
+                
+                const huaweiInstance = prompt('Enter Huawei instance name (e.g., s6.small.1, c6.xlarge.2):');
+                if (!huaweiInstance || huaweiInstance.trim() === '') {
+                    return;
+                }
+                
+                const vcpu = prompt('Enter vCPU count (e.g., 2, 4, 8):');
+                if (!vcpu || isNaN(parseInt(vcpu))) {
+                    alert('Invalid vCPU count');
+                    return;
+                }
+                
+                const memory = prompt('Enter Memory in GB (e.g., 1, 2, 4, 8):');
+                if (!memory || isNaN(parseInt(memory))) {
+                    alert('Invalid memory size');
+                    return;
+                }
+                
+                const sku = prompt('Enter SKU (e.g., HW-ECS-S6-SMALL-1):');
+                if (!sku || sku.trim() === '') {
+                    return;
+                }
+                
+                currentMappings[trimmedInstance] = {
+                    name: huaweiInstance.trim(),
+                    vcpu: parseInt(vcpu),
+                    memory: parseInt(memory),
+                    sku: sku.trim()
+                };
+                
+                renderMappingTable();
+                alert(\`Mapping for \${trimmedInstance} added successfully! Don't forget to click "Save Changes".\`);
             });
 
             fileInput.addEventListener('change', (e) => {
@@ -1630,7 +1690,7 @@ app.get('/', (c) => {
 
                 // Sheet 2: Summary Page with AWS vs Huawei pricing comparison
                 const summaryRows = [];
-                summaryRows.push(['AWS vs HUAWEI CLOUD PRICING COMPARISON']);
+                summaryRows.push(['AWS vs HUAWEI CLOUD COST ESTIMATE COMPARISON']);
                 summaryRows.push([]);
                 summaryRows.push(['Generated Date:', new Date(quotationData.generatedAt).toLocaleString()]);
                 summaryRows.push(['Currency:', 'USD']);
@@ -1723,11 +1783,11 @@ app.get('/', (c) => {
                     {wch: 15}  // Savings %
                 ];
                 
-                XLSX.utils.book_append_sheet(wb, ws1, 'Detailed Quotation');
+                XLSX.utils.book_append_sheet(wb, ws1, 'Detailed Estimate');
                 XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
                 
                 // Generate Excel file
-                XLSX.writeFile(wb, \`huawei_cloud_quotation_\${new Date().toISOString().split('T')[0]}.xlsx\`);
+                XLSX.writeFile(wb, \`huawei_cloud_estimate_\${new Date().toISOString().split('T')[0]}.xlsx\`);
             });
 
             resetBtn.addEventListener('click', () => {
