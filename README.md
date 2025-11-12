@@ -1,51 +1,64 @@
-# AWS to Huawei Cloud Quotation Generator
+# AWS to Huawei Cloud Estimate Generator
 
 ## Quick Start
 
-1. **Download Template**: Get [AWS_Sample.xlsx](./AWS_Sample.xlsx) from this repository
+1. **Download Template**: Get [AWS_Sample.xlsx](https://github.com/antitown/QuoteMachine/raw/main/AWS_Sample.xlsx) from GitHub
 2. **Edit File**: Replace sample data with your AWS EC2 instances
-3. **Upload**: Visit the [web application](https://3000-i683g7rhnhlxqak3cgrzf-2b54fc91.sandbox.novita.ai)
-4. **Generate**: Click "Generate Quotation" to get Huawei Cloud pricing
-5. **Download**: Export detailed quotation as CSV
+3. **Upload**: Visit the web application
+4. **Generate**: Click "Generate Estimate" to get comprehensive AWS vs Huawei Cloud pricing comparison
+5. **Download**: Export detailed estimate as Excel (.xlsx) with multiple pricing models
 
 ## Project Overview
-- **Name**: AWS to Huawei Cloud Quotation Generator
-- **Goal**: Convert AWS EC2 instance configurations to equivalent Huawei Cloud instances with pricing quotations
+- **Name**: AWS to Huawei Cloud Estimate Generator
+- **Version**: 4.0
+- **Goal**: Provide comprehensive AWS vs Huawei Cloud cost comparison with multiple pricing models
 - **Features**: 
-  - Excel file upload and parsing
-  - Automatic AWS to Huawei Cloud instance mapping
-  - **Manual pricing refresh from AWS and Huawei Cloud APIs**
-  - **Separated compute and storage SKUs in quotation**
-  - Detailed line-item quotations with SKU codes
+  - **4 Pricing Models**: AWS PAYG, AWS 1Y RI, Huawei PAYG, Huawei 1Y Commitment
+  - **Accurate AWS Storage Pricing**: EBS gp3/gp2/io2/st1/sc1 per-GB pricing
+  - **Reserved Instance Pricing**: AWS 1-Year RI with 35% discount (All Upfront)
+  - **Focused Savings Analysis**: Clear comparison vs AWS PAYG and RI pricing
+  - Excel file upload and parsing (supports .xlsx, .xls)
+  - Automatic AWS to Huawei Cloud instance mapping (28 instance types)
+  - Editable instance mapping with web UI
+  - Manual pricing refresh from Huawei Cloud API
+  - Detailed line-item estimates with SKU codes
   - Live pricing option for real-time cost estimation
-  - Cost calculation with separate compute and storage pricing
-  - Downloadable CSV quotation with detailed breakdown
+  - **Professional Excel export** with Detailed Estimate and Summary sheets
+  - Annual savings calculation
   - Support for multiple instance types (T, M, C, R series)
 
 ## URLs
 - **Local Development**: http://localhost:3000
-- **Public Sandbox URL**: https://3000-i683g7rhnhlxqak3cgrzf-2b54fc91.sandbox.novita.ai
-- **Production**: (Ready for Cloudflare Pages deployment)
+- **Production**: Ready for Cloudflare Pages deployment
 - **GitHub Repository**: https://github.com/antitown/QuoteMachine
+- **Template Download**: https://github.com/antitown/QuoteMachine/raw/main/AWS_Sample.xlsx
 
 ## Data Architecture
 - **Data Models**: 
   - EC2Instance: AWS instance specifications (name, type, region, OS, storage)
-  - HuaweiQuotation: Mapped Huawei Cloud instance with detailed pricing
+  - HuaweiQuotation: Mapped Huawei Cloud instance with all 4 pricing models
   - QuotationLineItem: Individual SKU line items (compute and storage separated)
+  - Pricing Structure: Nested object with AWS (PAYG + 1Y RI) and Huawei (PAYG + 1Y Commitment)
 - **Storage Services**: 
-  - In-memory pricing cache for performance
+  - In-memory pricing cache for Huawei Cloud compute pricing
+  - Cached AWS EBS storage pricing (gp3/gp2/io2/st1/sc1)
+  - Cached AWS Reserved Instance discounts
+  - JSON configuration files in `/public/data/`
   - File upload processing (no persistent storage needed)
 - **Data Flow**: 
-  1. User can manually refresh pricing from AWS/Huawei Cloud APIs
-  2. User uploads Excel file with AWS EC2 data
-  3. Backend parses Excel using SheetJS (xlsx)
-  4. System maps AWS instances to Huawei Cloud equivalents
-  5. Optionally fetch live pricing if requested
-  6. Generate separate line items for compute and storage with SKU codes
-  7. Calculate pricing based on instance specs and storage
-  8. Return detailed quotation to frontend with line-by-line breakdown
-  9. User can download CSV report with all SKU details
+  1. User can manually refresh pricing from Huawei Cloud API
+  2. User can manage AWS to Huawei instance mappings via web UI
+  3. User uploads Excel file with AWS EC2 data
+  4. Backend parses Excel using SheetJS (xlsx)
+  5. System maps AWS instances to Huawei Cloud equivalents
+  6. Optionally fetch live pricing if requested
+  7. Calculate AWS pricing (PAYG and 1Y RI) using cached rates
+  8. Calculate Huawei pricing (PAYG and 1Y Commitment)
+  9. Calculate savings vs AWS PAYG and AWS RI
+  10. Return detailed estimate to frontend with all 4 models
+  11. User can download Excel report with:
+      - Detailed Estimate sheet (all pricing models per instance)
+      - Summary sheet (comparison table, savings breakdown, recommendations)
 
 ## Excel File Format
 
@@ -149,66 +162,110 @@ node create_sample.cjs
 ## User Guide
 
 1. **Access the Application**: Open the web application in your browser
-2. **Refresh Pricing (Optional)**: Click "Refresh Pricing" button to get latest prices from AWS and Huawei Cloud
-3. **Prepare Excel File**: Create an Excel file with your AWS EC2 instances (see format above)
-4. **Upload File**: Click the upload area or drag and drop your Excel file
-5. **Choose Pricing Option**: 
-   - Leave unchecked for cached pricing (faster)
+2. **Download Template** (Optional): Click the template download link to get sample Excel file
+3. **Manage Mappings** (Optional): Click "Manage Mappings" to view/edit/add AWS to Huawei instance mappings
+4. **Refresh Pricing** (Optional): Click "Refresh Pricing" to get latest prices from Huawei Cloud API
+5. **Prepare Excel File**: Create an Excel file with your AWS EC2 instances (see format above)
+6. **Upload File**: Click the upload area or drag and drop your Excel file
+7. **Choose Pricing Option**: 
+   - Leave unchecked for cached pricing (faster, recommended)
    - Check "Use live pricing" for real-time API pricing (slightly slower)
-6. **Generate Quotation**: Click "Generate Quotation" button
-7. **Review Results**: View detailed quotation with separate compute and storage line items
-   - Each instance generates two SKU line items: compute and storage
-   - View SKU codes, specifications, unit prices, and totals
-   - **Compare pricing models**: PAYG vs Monthly Subscription side-by-side
-   - **See savings**: Automatic calculation of discount and savings percentage
-8. **Download Report**: Click "Download Quotation" to get a detailed CSV file with all SKU information and both pricing models
+8. **Generate Estimate**: Click "Generate Estimate" button
+9. **Review Results**: View comprehensive comparison with all 4 pricing models
+   - **Pricing Comparison Cards**: See AWS PAYG, AWS 1Y RI, Huawei PAYG, Huawei 1Y per instance
+   - **Line Item Detail**: Huawei PAYG and 1Y Commitment for compute and storage SKUs
+   - **Grand Total Table**: All models compared with savings vs AWS
+   - **Savings Highlight**: Monthly and annual savings vs AWS PAYG and RI
+   - **Clear Recommendation**: Huawei 1Y Commitment highlighted as best value
+10. **Download Report**: Click "Download Estimate (Excel)" to get comprehensive report:
+    - **Detailed Estimate Sheet**: All instances with 15 columns of pricing data
+    - **Summary Sheet**: Pricing model comparison, savings analysis, recommendations
 
 ## Pricing Information
 
-### Dual Pricing Models
-The quotation generator provides **two pricing models** side-by-side for easy comparison:
+### All Pricing Models (V4.0)
+The estimate generator provides **4 pricing models** for comprehensive comparison:
 
-#### 1. Pay-As-You-Go (PAYG) Model
-- **Billing**: Hourly usage converted to monthly estimate
+#### 1. AWS Pay-As-You-Go (PAYG)
+- **Billing**: On-demand hourly usage
 - **Flexibility**: No commitment, pay only for what you use
 - **Best For**: Variable workloads, testing, short-term projects
+- **Calculation**: 
+  - Compute: Hourly rate × 730 hours/month
+  - Storage: Per-GB rate × storage size (EBS gp3/gp2/io2/st1)
+
+#### 2. AWS 1-Year Reserved Instance (All Upfront)
+- **Billing**: 1-year commitment with upfront payment
+- **Discount**: 35% off on-demand pricing
+- **Best For**: Predictable, steady-state workloads
+- **Calculation**: AWS PAYG monthly × 0.65 (compute only)
+- **Notes**: Storage pricing same as PAYG (no RI discount)
+
+#### 3. Huawei Cloud Pay-As-You-Go
+- **Billing**: Hourly usage converted to monthly estimate
+- **Flexibility**: No commitment
+- **Best For**: Variable workloads, cost comparison
 - **Calculation**: Hourly rate × 730 hours/month
 
-#### 2. Monthly Subscription Model
-- **Billing**: Fixed monthly commitment pricing
+#### 4. Huawei Cloud 1-Year Commitment (RECOMMENDED)
+- **Billing**: 1-year subscription with monthly billing
 - **Discounts**: 
   - **15% off compute pricing** (ECS instances)
   - **10% off storage pricing** (EVS volumes)
-- **Best For**: Stable workloads, long-term production environments
-- **Savings**: Typically 10-15% total cost reduction
-- **Calculation**: (PAYG monthly price) × discount multiplier
+- **Best For**: Production workloads, maximum savings
+- **Calculation**: 
+  - Compute: Huawei PAYG monthly × 0.85
+  - Storage: Huawei PAYG monthly × 0.90
 
-### Compute Pricing (Separate SKU)
-- **Instance Pricing**: Based on Huawei Cloud list prices (hourly rates calculated to monthly)
+### AWS Compute Pricing
+- **Pricing Source**: Static pricing data (US East N. Virginia)
+- **28 Instance Types**: t2/t3 (Burstable), m5/m6i (General Purpose), c5/c6i (Compute), r5/r6i (Memory)
+- **PAYG Calculation**: Hourly rate × 730 hours/month
+- **RI 1Y Calculation**: PAYG monthly × 0.65 (35% discount)
+
+### AWS Storage Pricing (EBS)
+- **SKU Format**: Automatically mapped from Huawei storage type
+- **Pricing Source**: Cached in `/public/data/aws-ebs-pricing.json`
+- **Storage Types**:
+  - **gp3** (General Purpose SSD): $0.08 per GB/month (default for SSD)
+  - **gp2** (General Purpose SSD): $0.10 per GB/month
+  - **io2** (Provisioned IOPS SSD): $0.125 per GB/month (for Ultra-high I/O)
+  - **st1** (Throughput Optimized HDD): $0.045 per GB/month (for HDD)
+  - **sc1** (Cold HDD): $0.015 per GB/month
+- **Calculation**: Price per GB × storage size
+
+### Huawei Cloud Compute Pricing
+- **Instance Pricing**: Based on Huawei Cloud API list prices
 - **SKU Format**: HW-ECS-{SERIES}-{SIZE} (e.g., HW-ECS-C6-2XLARGE-2)
 - **Pricing Source**: 
   - Cached (default): Fast, uses last refreshed prices
   - Live: Real-time API pricing with slight delay
-- **Region Multipliers**: Prices vary by region (US, EU, Asia-Pacific)
-- **PAYG Calculation**: Unit price per hour × 730 hours/month × quantity
-- **Subscription Calculation**: PAYG monthly × 0.85 (15% discount)
+- **Region**: ap-southeast-1 (default)
+- **PAYG Calculation**: Hourly rate × 730 hours/month
+- **1Y Commitment Calculation**: PAYG monthly × 0.85 (15% discount)
 
-### Storage Pricing (Separate SKU)
+### Huawei Cloud Storage Pricing
 - **SKU Format**: HW-EVS-{TYPE} (e.g., HW-EVS-SSD, HW-EVS-HDD)
 - **Base Rates (PAYG)**:
   - **SSD**: $0.10 per GB per month
   - **HDD**: $0.05 per GB per month
   - **Ultra-high I/O**: $0.15 per GB per month
-- **PAYG Calculation**: Price per GB × storage size × quantity
-- **Subscription Calculation**: PAYG monthly × 0.90 (10% discount)
+- **PAYG Calculation**: Price per GB × storage size
+- **1Y Commitment Calculation**: PAYG monthly × 0.90 (10% discount)
 
-### Quotation Output Features
-- **Side-by-Side Comparison**: View both pricing models in the same table
-- **Line Item Detail**: Each compute and storage SKU shows both PAYG and subscription pricing
-- **Instance Totals**: Subtotals for each instance in both models
-- **Grand Totals**: Overall monthly costs with clear savings display
-- **Discount Percentage**: Automatic calculation showing total savings
-- **CSV Export**: Download detailed quotation with both pricing models
+### Estimate Output Features (V4.0)
+- **4-Model Comparison**: View AWS PAYG, AWS 1Y RI, Huawei PAYG, Huawei 1Y side-by-side
+- **Pricing Comparison Cards**: Visual cards showing all 4 models per instance
+- **Savings Analysis**: 
+  - Savings vs AWS PAYG (monthly + percentage)
+  - Savings vs AWS 1Y RI (monthly + percentage)
+  - Annual savings projection
+- **Grand Total Table**: Professional comparison with all models ranked
+- **Recommendations**: Clear guidance on best-value option (Huawei 1Y Commitment)
+- **Excel Export**: Two-sheet workbook
+  - **Detailed Estimate**: 15 columns with all pricing models per instance
+  - **Summary**: Comparison table, savings breakdown, annual projection
+- **No Quotation IDs**: Streamlined output focused on comparison
 
 ### Pricing Refresh
 - **Manual Refresh**: Click "Refresh Pricing" button to fetch latest prices
@@ -262,32 +319,84 @@ curl -X POST http://localhost:3000/api/process -F "file=@aws_instances.xlsx" -F 
   - TailwindCSS (Frontend styling)
   - Axios (HTTP client)
   - PM2 (Process manager)
-- **Last Updated**: 2025-11-11
+- **Last Updated**: 2025-01-12 (V4.0)
 
 ## Sample Files
 - **AWS_Sample.xlsx**: Sample Excel file with AWS EC2 instances (included in project)
 - **create_sample.cjs**: Script to generate sample Excel files
 
-## Latest Updates (v2.1)
+## Latest Updates (V4.0 - January 2025)
 
-### ✅ Completed Features
-- **Dual Pricing Models (NEW)**: Side-by-side PAYG and Monthly Subscription pricing
-  - 15% discount on compute for subscription model
-  - 10% discount on storage for subscription model
-  - Automatic savings calculation and percentage display
-  - Both models included in quotation tables and CSV exports
-- **Manual Pricing Refresh**: Real-time pricing updates from AWS and Huawei Cloud APIs
-- **Separated SKUs**: Compute and storage broken into individual line items
-- **SKU Codes**: Professional SKU coding system (HW-ECS-*, HW-EVS-*)
-- **Live Pricing Option**: Choose between cached or real-time pricing
-- **Detailed Quotations**: Line-by-line breakdown with specifications
-- **Enhanced CSV Export**: Full SKU details with both pricing models in downloadable reports
-- **Instance Name Tracking**: One row per instance with unique instance names
+### 🎉 Major Update: Complete AWS Comparison
+
+#### ✅ New Features
+1. **4 Pricing Models**: Complete comparison across all pricing options
+   - AWS Pay-As-You-Go (on-demand baseline)
+   - AWS 1-Year Reserved Instance (35% discount)
+   - Huawei Cloud Pay-As-You-Go
+   - Huawei Cloud 1-Year Commitment (15% compute + 10% storage discount)
+
+2. **AWS Reserved Instance Pricing**
+   - Industry-standard 35% discount for 1Y All Upfront RI
+   - Realistic apples-to-apples comparison (1Y vs 1Y)
+   - Separate AWS RI savings analysis
+
+3. **Accurate AWS Storage Pricing**
+   - EBS gp3: $0.08/GB (default for SSD)
+   - EBS gp2: $0.10/GB
+   - EBS io2: $0.125/GB (Ultra-high I/O)
+   - EBS st1: $0.045/GB (HDD)
+   - Cached in `/public/data/aws-ebs-pricing.json`
+
+4. **Focused Savings Analysis**
+   - Removed internal Huawei PAYG vs Subscription comparison
+   - Added comprehensive AWS comparison:
+     - Huawei 1Y vs AWS PAYG (monthly + annual savings)
+     - Huawei 1Y vs AWS 1Y RI (monthly + annual savings)
+   - Percentage savings for each comparison
+
+5. **Streamlined Output**
+   - Removed Quotation ID column (cleaner interface)
+   - Professional pricing model comparison table
+   - Clear "RECOMMENDED" highlighting for best value
+   - Enhanced Excel export with Summary sheet
+
+6. **Professional Excel Export**
+   - **Detailed Estimate Sheet** (15 columns):
+     - Instance Name, AWS Instance, Huawei Instance, vCPU, Memory, Storage
+     - AWS PAYG Monthly, AWS 1Y RI Monthly
+     - Huawei PAYG Monthly, Huawei 1Y Commitment
+     - Savings vs AWS PAYG, Savings %, Region, OS
+   - **Summary Sheet**:
+     - Pricing Model Comparison table
+     - Savings Breakdown (monthly and annual)
+     - Clear Recommendations
+
+### 🔧 Technical Improvements
+- New pricing cache files for AWS EBS and RI pricing
+- Restructured data model with nested pricing objects
+- Updated all pricing calculations for 4-model support
+- Enhanced frontend UI with comparison cards
+- Improved savings visualization
+
+### 📋 Previous Features (Maintained)
+- Manual Pricing Refresh from Huawei Cloud API
+- Instance Mapping Editor with add/edit/delete functionality
+- Separated SKUs for compute and storage
+- Professional SKU coding system (HW-ECS-*, HW-EVS-*)
+- Live Pricing Option for real-time cost estimation
+- Support for 28 AWS instance types (T, M, C, R series)
+- Template Excel file download
 
 ### API Endpoints
-- `GET /api/pricing` - Get current pricing cache
-- `POST /api/pricing/refresh` - Manually refresh pricing from APIs
-- `POST /api/process` - Process Excel file and generate quotation
+- `GET /api/pricing` - Get current Huawei Cloud pricing cache
+- `POST /api/pricing/refresh` - Manually refresh pricing from Huawei Cloud API
+- `GET /api/mappings` - Get all AWS to Huawei instance mappings
+- `POST /api/mappings` - Update all instance mappings (bulk save)
+- `PUT /api/mappings/:awsInstance` - Update single mapping
+- `DELETE /api/mappings/:awsInstance` - Delete mapping
+- `GET /api/aws-pricing` - Get AWS compute pricing data
+- `POST /api/process` - Process Excel file and generate comprehensive estimate
 
 ## Huawei Cloud API Integration
 
@@ -319,13 +428,21 @@ curl http://localhost:3000/api/test-huawei
 
 ## Future Enhancements
 - [x] ~~Real Huawei Cloud Pricing API integration~~ ✅ **COMPLETED**
-- [ ] Real AWS Pricing API integration (currently simulated)
-- [ ] Expand AWS to Huawei instance mapping dictionary
-- [ ] Add more AWS instance types (G, P, I series)
+- [x] ~~AWS Reserved Instance pricing~~ ✅ **COMPLETED (V4.0)**
+- [x] ~~AWS EBS storage pricing~~ ✅ **COMPLETED (V4.0)**
+- [x] ~~Multiple pricing models comparison~~ ✅ **COMPLETED (V4.0)**
+- [x] ~~Instance mapping editor~~ ✅ **COMPLETED (V3.0)**
+- [ ] Per-instance AWS RI pricing (currently using fixed 35% discount)
+- [ ] 3-Year commitment pricing (AWS and Huawei)
+- [ ] Real-time AWS Pricing API integration
+- [ ] Expand AWS to Huawei instance mapping (more instance types)
+- [ ] GPU instances (G, P series)
+- [ ] Storage-optimized instances (I, D series)
 - [ ] Support for RDS, ELB, and other AWS services
-- [ ] Multiple region pricing comparison
-- [ ] PDF quotation export with branding
-- [ ] Historical quotation storage with D1 database
+- [ ] Regional pricing comparison (multiple regions)
+- [ ] PDF estimate export with branding
+- [ ] Historical estimate storage with D1 database
 - [ ] Custom pricing input and overrides
 - [ ] Batch processing for multiple files
-- [ ] Discount tier calculations (1-year, 3-year reserved)
+- [ ] Currency support (EUR, GBP, CNY)
+- [ ] Enterprise volume discounts
