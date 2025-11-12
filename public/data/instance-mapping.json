@@ -1,0 +1,170 @@
+{
+  "t2.micro": {
+    "name": "s6.small.1",
+    "vcpu": 1,
+    "memory": 1,
+    "sku": "HW-ECS-S6-SMALL-1"
+  },
+  "t2.small": {
+    "name": "s6.medium.2",
+    "vcpu": 1,
+    "memory": 2,
+    "sku": "HW-ECS-S6-MEDIUM-2"
+  },
+  "t2.medium": {
+    "name": "s6.large.2",
+    "vcpu": 2,
+    "memory": 4,
+    "sku": "HW-ECS-S6-LARGE-2"
+  },
+  "t2.large": {
+    "name": "s6.xlarge.2",
+    "vcpu": 2,
+    "memory": 8,
+    "sku": "HW-ECS-S6-XLARGE-2"
+  },
+  "t3.micro": {
+    "name": "s6.small.1",
+    "vcpu": 2,
+    "memory": 1,
+    "sku": "HW-ECS-S6-SMALL-1"
+  },
+  "t3.small": {
+    "name": "s6.medium.2",
+    "vcpu": 2,
+    "memory": 2,
+    "sku": "HW-ECS-S6-MEDIUM-2"
+  },
+  "t3.medium": {
+    "name": "s6.large.2",
+    "vcpu": 2,
+    "memory": 4,
+    "sku": "HW-ECS-S6-LARGE-2"
+  },
+  "t3.large": {
+    "name": "s6.xlarge.2",
+    "vcpu": 2,
+    "memory": 8,
+    "sku": "HW-ECS-S6-XLARGE-2"
+  },
+  "m5.large": {
+    "name": "c6.xlarge.2",
+    "vcpu": 2,
+    "memory": 8,
+    "sku": "HW-ECS-C6-XLARGE-2"
+  },
+  "m5.xlarge": {
+    "name": "c6.2xlarge.2",
+    "vcpu": 4,
+    "memory": 16,
+    "sku": "HW-ECS-C6-2XLARGE-2"
+  },
+  "m5.2xlarge": {
+    "name": "c6.4xlarge.2",
+    "vcpu": 8,
+    "memory": 32,
+    "sku": "HW-ECS-C6-4XLARGE-2"
+  },
+  "m5.4xlarge": {
+    "name": "c6.8xlarge.2",
+    "vcpu": 16,
+    "memory": 64,
+    "sku": "HW-ECS-C6-8XLARGE-2"
+  },
+  "m5.8xlarge": {
+    "name": "c6.16xlarge.2",
+    "vcpu": 32,
+    "memory": 128,
+    "sku": "HW-ECS-C6-16XLARGE-2"
+  },
+  "m6i.large": {
+    "name": "c7.xlarge.2",
+    "vcpu": 2,
+    "memory": 8,
+    "sku": "HW-ECS-C7-XLARGE-2"
+  },
+  "m6i.xlarge": {
+    "name": "c7.2xlarge.2",
+    "vcpu": 4,
+    "memory": 16,
+    "sku": "HW-ECS-C7-2XLARGE-2"
+  },
+  "m6i.2xlarge": {
+    "name": "c7.4xlarge.2",
+    "vcpu": 8,
+    "memory": 32,
+    "sku": "HW-ECS-C7-4XLARGE-2"
+  },
+  "c5.large": {
+    "name": "c6.xlarge.2",
+    "vcpu": 2,
+    "memory": 4,
+    "sku": "HW-ECS-C6-XLARGE-2"
+  },
+  "c5.xlarge": {
+    "name": "c6.2xlarge.2",
+    "vcpu": 4,
+    "memory": 8,
+    "sku": "HW-ECS-C6-2XLARGE-2"
+  },
+  "c5.2xlarge": {
+    "name": "c6.4xlarge.2",
+    "vcpu": 8,
+    "memory": 16,
+    "sku": "HW-ECS-C6-4XLARGE-2"
+  },
+  "c5.4xlarge": {
+    "name": "c6.8xlarge.2",
+    "vcpu": 16,
+    "memory": 32,
+    "sku": "HW-ECS-C6-8XLARGE-2"
+  },
+  "c6i.large": {
+    "name": "c7.xlarge.2",
+    "vcpu": 2,
+    "memory": 4,
+    "sku": "HW-ECS-C7-XLARGE-2"
+  },
+  "c6i.xlarge": {
+    "name": "c7.2xlarge.2",
+    "vcpu": 4,
+    "memory": 8,
+    "sku": "HW-ECS-C7-2XLARGE-2"
+  },
+  "r5.large": {
+    "name": "m6.xlarge.8",
+    "vcpu": 2,
+    "memory": 16,
+    "sku": "HW-ECS-M6-XLARGE-8"
+  },
+  "r5.xlarge": {
+    "name": "m6.2xlarge.8",
+    "vcpu": 4,
+    "memory": 32,
+    "sku": "HW-ECS-M6-2XLARGE-8"
+  },
+  "r5.2xlarge": {
+    "name": "m6.4xlarge.8",
+    "vcpu": 8,
+    "memory": 64,
+    "sku": "HW-ECS-M6-4XLARGE-8"
+  },
+  "r5.4xlarge": {
+    "name": "m6.8xlarge.8",
+    "vcpu": 16,
+    "memory": 128,
+    "sku": "HW-ECS-M6-8XLARGE-8"
+  },
+  "r6i.large": {
+    "name": "m7.xlarge.8",
+    "vcpu": 2,
+    "memory": 16,
+    "sku": "HW-ECS-M7-XLARGE-8"
+  },
+  "r6i.xlarge": {
+    "name": "m7.2xlarge.8",
+    "vcpu": 4,
+    "memory": 32,
+    "sku": "HW-ECS-M7-2XLARGE-8"
+  }
+}

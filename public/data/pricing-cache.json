@@ -1,0 +1,29 @@
+{
+  "compute": {
+    "s6.small.1": 0.012,
+    "s6.medium.2": 0.024,
+    "s6.large.2": 0.048,
+    "s6.xlarge.2": 0.096,
+    "c6.xlarge.2": 0.096,
+    "c6.2xlarge.2": 0.192,
+    "c6.4xlarge.2": 0.384,
+    "c6.8xlarge.2": 0.768,
+    "c6.16xlarge.2": 1.536,
+    "c7.xlarge.2": 0.096,
+    "c7.2xlarge.2": 0.192,
+    "c7.4xlarge.2": 0.384,
+    "m6.xlarge.8": 0.126,
+    "m6.2xlarge.8": 0.252,
+    "m6.4xlarge.8": 0.504,
+    "m6.8xlarge.8": 1.008,
+    "m7.xlarge.8": 0.126,
+    "m7.2xlarge.8": 0.252
+  },
+  "storage": {
+    "SSD": 0.10,
+    "HDD": 0.05,
+    "Ultra-high I/O": 0.15
+  },
+  "lastUpdated": "2025-11-11T12:00:00.000Z",
+  "source": "default"
+}

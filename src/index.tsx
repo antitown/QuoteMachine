@@ -7,8 +7,8 @@ const app = new Hono()
 // Enable CORS for API routes
 app.use('/api/*', cors())
 
-// AWS to Huawei Cloud instance mapping
-const instanceMapping: Record<string, { name: string; vcpu: number; memory: number; sku: string }> = {
+// AWS to Huawei Cloud instance mapping (mutable for editor functionality)
+let instanceMapping: Record<string, { name: string; vcpu: number; memory: number; sku: string }> = {
   // T series (Burstable)
   't2.micro': { name: 's6.small.1', vcpu: 1, memory: 1, sku: 'HW-ECS-S6-SMALL-1' },
   't2.small': { name: 's6.medium.2', vcpu: 1, memory: 2, sku: 'HW-ECS-S6-MEDIUM-2' },
@@ -167,6 +167,11 @@ interface HuaweiQuotation {
   storageType: string
   lineItems: QuotationLineItem[]
   pricing: {
+    aws: {
+      compute: number
+      storage: number
+      total: number
+    }
     payg: {
       subtotal: number
       total: number
@@ -612,6 +617,12 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
         notes: `High-performance block storage - ${instance.instanceName}`
       })
 
+      // Calculate AWS pricing
+      const awsComputeHourly = awsPricingData[instance.instanceType.toLowerCase()] || 0
+      const awsComputeMonthly = awsComputeHourly * hoursPerMonth
+      const awsStorageMonthly = (instance.storage || 100) * 0.10 // AWS EBS GP3 pricing
+      const awsTotalMonthly = awsComputeMonthly + awsStorageMonthly
+
       // Calculate totals for both pricing models
       const paygTotal = lineItems.reduce((sum, item) => sum + item.pricing.payg, 0)
       const subscriptionTotal = lineItems.reduce((sum, item) => sum + item.pricing.subscription, 0)
@@ -631,6 +642,11 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
         storageType: instance.storageType || 'SSD',
         lineItems,
         pricing: {
+          aws: {
+            compute: awsComputeMonthly,
+            storage: awsStorageMonthly,
+            total: awsTotalMonthly
+          },
           payg: {
             subtotal: paygTotal,
             total: paygTotal
@@ -700,6 +716,12 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       notes: `High-performance block storage - ${instance.instanceName}`
     })
 
+    // Calculate AWS pricing
+    const awsComputeHourly = awsPricingData[instance.instanceType.toLowerCase()] || 0
+    const awsComputeMonthly = awsComputeHourly * hoursPerMonth
+    const awsStorageMonthly = (instance.storage || 100) * 0.10 // AWS EBS GP3 pricing
+    const awsTotalMonthly = awsComputeMonthly + awsStorageMonthly
+
     // Calculate totals for both pricing models
     const paygTotal = lineItems.reduce((sum, item) => sum + item.pricing.payg, 0)
     const subscriptionTotal = lineItems.reduce((sum, item) => sum + item.pricing.subscription, 0)
@@ -719,6 +741,11 @@ async function generateQuotation(instances: EC2Instance[], refreshPricing: boole
       storageType: instance.storageType || 'SSD',
       lineItems,
       pricing: {
+        aws: {
+          compute: awsComputeMonthly,
+          storage: awsStorageMonthly,
+          total: awsTotalMonthly
+        },
         payg: {
           subtotal: paygTotal,
           total: paygTotal
@@ -808,6 +835,108 @@ app.post('/api/pricing/refresh', async (c) => {
   }
 })
 
+// API endpoint to get instance mappings
+app.get('/api/mappings', (c) => {
+  return c.json({
+    success: true,
+    mappings: instanceMapping,
+    count: Object.keys(instanceMapping).length
+  })
+})
+
+// API endpoint to update instance mappings
+app.post('/api/mappings', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { mappings } = body
+    
+    if (!mappings || typeof mappings !== 'object') {
+      return c.json({ 
+        success: false, 
+        error: 'Invalid mappings data' 
+      }, 400)
+    }
+    
+    // Update the instance mapping
+    instanceMapping = mappings
+    
+    return c.json({
+      success: true,
+      message: 'Instance mappings updated successfully',
+      count: Object.keys(instanceMapping).length
+    })
+  } catch (error) {
+    return c.json({ 
+      success: false, 
+      error: 'Failed to update mappings: ' + (error as Error).message 
+    }, 500)
+  }
+})
+
+// API endpoint to add/update a single mapping
+app.put('/api/mappings/:awsInstance', async (c) => {
+  try {
+    const awsInstance = c.req.param('awsInstance')
+    const body = await c.req.json()
+    const { name, vcpu, memory, sku } = body
+    
+    if (!name || !vcpu || !memory || !sku) {
+      return c.json({ 
+        success: false, 
+        error: 'Missing required fields: name, vcpu, memory, sku' 
+      }, 400)
+    }
+    
+    instanceMapping[awsInstance] = { name, vcpu, memory, sku }
+    
+    return c.json({
+      success: true,
+      message: `Mapping for ${awsInstance} updated successfully`,
+      mapping: instanceMapping[awsInstance]
+    })
+  } catch (error) {
+    return c.json({ 
+      success: false, 
+      error: 'Failed to update mapping: ' + (error as Error).message 
+    }, 500)
+  }
+})
+
+// API endpoint to delete a mapping
+app.delete('/api/mappings/:awsInstance', (c) => {
+  try {
+    const awsInstance = c.req.param('awsInstance')
+    
+    if (!instanceMapping[awsInstance]) {
+      return c.json({ 
+        success: false, 
+        error: 'Mapping not found' 
+      }, 404)
+    }
+    
+    delete instanceMapping[awsInstance]
+    
+    return c.json({
+      success: true,
+      message: `Mapping for ${awsInstance} deleted successfully`
+    })
+  } catch (error) {
+    return c.json({ 
+      success: false, 
+      error: 'Failed to delete mapping: ' + (error as Error).message 
+    }, 500)
+  }
+})
+
+// API endpoint to get AWS pricing data
+app.get('/api/aws-pricing', (c) => {
+  return c.json({
+    success: true,
+    pricing: awsPricingData,
+    count: Object.keys(awsPricingData).length
+  })
+})
+
 // API endpoint to process Excel file
 app.post('/api/process', async (c) => {
   try {
@@ -830,7 +959,10 @@ app.post('/api/process', async (c) => {
     // To refresh pricing, use the /api/pricing/refresh endpoint
     const quotations = await generateQuotation(instances, false)
     
-    // Calculate grand totals for both pricing models
+    // Calculate grand totals for all pricing models
+    const grandTotalAws = quotations.reduce((sum, q) => sum + q.pricing.aws.total, 0)
+    const grandTotalAwsCompute = quotations.reduce((sum, q) => sum + q.pricing.aws.compute, 0)
+    const grandTotalAwsStorage = quotations.reduce((sum, q) => sum + q.pricing.aws.storage, 0)
     const grandTotalPayg = quotations.reduce((sum, q) => sum + q.pricing.payg.total, 0)
     const grandTotalSubscription = quotations.reduce((sum, q) => sum + q.pricing.subscription.total, 0)
     const grandDiscount = grandTotalPayg - grandTotalSubscription
@@ -839,6 +971,12 @@ app.post('/api/process', async (c) => {
       success: true,
       quotations,
       totalPricing: {
+        aws: {
+          compute: grandTotalAwsCompute,
+          storage: grandTotalAwsStorage,
+          total: grandTotalAws,
+          perMonth: grandTotalAws
+        },
         payg: {
           total: grandTotalPayg,
           perMonth: grandTotalPayg
@@ -932,10 +1070,16 @@ app.get('/', (c) => {
                                 Source: <span id="priceSource" class="font-semibold">Loading...</span>
                             </p>
                         </div>
-                        <button id="refreshPricingBtn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-                            <i class="fas fa-sync-alt mr-2"></i>
-                            Refresh Pricing
-                        </button>
+                        <div class="flex gap-3">
+                            <button id="refreshPricingBtn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                <i class="fas fa-sync-alt mr-2"></i>
+                                Refresh Pricing
+                            </button>
+                            <button id="manageMappingsBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                <i class="fas fa-edit mr-2"></i>
+                                Manage Mappings
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -1016,6 +1160,56 @@ app.get('/', (c) => {
             </div>
         </div>
 
+        <!-- Mapping Editor Modal -->
+        <div id="mappingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-2xl p-8 max-w-6xl w-full max-h-[90vh] overflow-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">
+                        <i class="fas fa-edit text-blue-600 mr-2"></i>
+                        AWS to Huawei Instance Mappings
+                    </h2>
+                    <button id="closeModalBtn" class="text-gray-600 hover:text-gray-800 text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-4">
+                    <p class="text-sm text-gray-600">
+                        Edit the mappings between AWS and Huawei Cloud instance types. Changes are saved in memory and will be used for quotation generation.
+                    </p>
+                </div>
+                
+                <div class="mb-4 flex justify-end gap-3">
+                    <button id="saveMappingsBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                        <i class="fas fa-save mr-2"></i>
+                        Save Changes
+                    </button>
+                    <button id="reloadMappingsBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        Reload
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="border px-4 py-2 text-left">AWS Instance</th>
+                                <th class="border px-4 py-2 text-left">Huawei Instance</th>
+                                <th class="border px-4 py-2 text-center">vCPU</th>
+                                <th class="border px-4 py-2 text-center">Memory (GB)</th>
+                                <th class="border px-4 py-2 text-left">SKU</th>
+                                <th class="border px-4 py-2 text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mappingTableBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script>
             let selectedFile = null;
@@ -1067,6 +1261,106 @@ app.get('/', (c) => {
                     refreshPricingBtn.innerHTML = originalText;
                     refreshPricingBtn.disabled = false;
                 }
+            });
+
+            // Mapping Editor functionality
+            const mappingModal = document.getElementById('mappingModal');
+            const manageMappingsBtn = document.getElementById('manageMappingsBtn');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const mappingTableBody = document.getElementById('mappingTableBody');
+            const saveMappingsBtn = document.getElementById('saveMappingsBtn');
+            const reloadMappingsBtn = document.getElementById('reloadMappingsBtn');
+            let currentMappings = {};
+
+            async function loadMappings() {
+                try {
+                    const response = await axios.get('/api/mappings');
+                    currentMappings = response.data.mappings;
+                    renderMappingTable();
+                } catch (error) {
+                    alert('Failed to load mappings: ' + error.message);
+                }
+            }
+
+            function renderMappingTable() {
+                mappingTableBody.innerHTML = '';
+                Object.keys(currentMappings).sort().forEach(awsInstance => {
+                    const mapping = currentMappings[awsInstance];
+                    const row = document.createElement('tr');
+                    row.innerHTML = \`
+                        <td class="border px-4 py-2 font-mono">\${awsInstance}</td>
+                        <td class="border px-4 py-2">
+                            <input type="text" value="\${mapping.name}" 
+                                   class="w-full px-2 py-1 border rounded" 
+                                   data-aws="\${awsInstance}" data-field="name" />
+                        </td>
+                        <td class="border px-4 py-2">
+                            <input type="number" value="\${mapping.vcpu}" 
+                                   class="w-full px-2 py-1 border rounded text-center" 
+                                   data-aws="\${awsInstance}" data-field="vcpu" />
+                        </td>
+                        <td class="border px-4 py-2">
+                            <input type="number" value="\${mapping.memory}" 
+                                   class="w-full px-2 py-1 border rounded text-center" 
+                                   data-aws="\${awsInstance}" data-field="memory" />
+                        </td>
+                        <td class="border px-4 py-2">
+                            <input type="text" value="\${mapping.sku}" 
+                                   class="w-full px-2 py-1 border rounded font-mono text-sm" 
+                                   data-aws="\${awsInstance}" data-field="sku" />
+                        </td>
+                        <td class="border px-4 py-2 text-center">
+                            <button class="text-red-600 hover:text-red-800" 
+                                    onclick="deleteMapping('\${awsInstance}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    \`;
+                    mappingTableBody.appendChild(row);
+                });
+
+                // Add input change listeners
+                document.querySelectorAll('#mappingTableBody input').forEach(input => {
+                    input.addEventListener('change', (e) => {
+                        const awsInstance = e.target.dataset.aws;
+                        const field = e.target.dataset.field;
+                        const value = field === 'vcpu' || field === 'memory' 
+                            ? parseInt(e.target.value) 
+                            : e.target.value;
+                        currentMappings[awsInstance][field] = value;
+                    });
+                });
+            }
+
+            window.deleteMapping = async function(awsInstance) {
+                if (confirm(\`Delete mapping for \${awsInstance}?\`)) {
+                    delete currentMappings[awsInstance];
+                    renderMappingTable();
+                }
+            };
+
+            manageMappingsBtn.addEventListener('click', () => {
+                mappingModal.classList.remove('hidden');
+                loadMappings();
+            });
+
+            closeModalBtn.addEventListener('click', () => {
+                mappingModal.classList.add('hidden');
+            });
+
+            saveMappingsBtn.addEventListener('click', async () => {
+                try {
+                    const response = await axios.post('/api/mappings', { mappings: currentMappings });
+                    if (response.data.success) {
+                        alert('Mappings saved successfully!');
+                    }
+                } catch (error) {
+                    alert('Failed to save mappings: ' + error.message);
+                }
+            });
+
+            reloadMappingsBtn.addEventListener('click', () => {
+                loadMappings();
             });
 
             fileInput.addEventListener('change', (e) => {
@@ -1326,17 +1620,54 @@ app.get('/', (c) => {
                 const computeSavings = computePayg - computeSubscription;
                 const storageSavings = storagePayg - storageSubscription;
                 const totalSavings = quotationData.totalPricing.subscription.discount;
+                
+                // Calculate AWS totals by type
+                let awsComputeTotal = 0, awsStorageTotal = 0;
+                quotationData.quotations.forEach(q => {
+                    awsComputeTotal += q.pricing.aws.compute;
+                    awsStorageTotal += q.pricing.aws.storage;
+                });
 
-                // Sheet 2: Summary Page with totals by type and savings
+                // Sheet 2: Summary Page with AWS vs Huawei pricing comparison
                 const summaryRows = [];
-                summaryRows.push(['HUAWEI CLOUD QUOTATION SUMMARY']);
+                summaryRows.push(['AWS vs HUAWEI CLOUD PRICING COMPARISON']);
                 summaryRows.push([]);
                 summaryRows.push(['Generated Date:', new Date(quotationData.generatedAt).toLocaleString()]);
                 summaryRows.push(['Currency:', 'USD']);
                 summaryRows.push(['Price Source:', quotationData.priceSource]);
                 summaryRows.push([]);
-                summaryRows.push(['COST BREAKDOWN BY TYPE']);
+                summaryRows.push(['COST COMPARISON BY TYPE']);
                 summaryRows.push([]);
+                summaryRows.push(['Type', 'AWS Monthly (USD)', 'Huawei PAYG (USD)', 'Huawei Subscription (USD)', 'vs AWS Savings', 'Savings (%)']);
+                summaryRows.push([
+                    'COMPUTE',
+                    parseFloat(awsComputeTotal.toFixed(2)),
+                    parseFloat(computePayg.toFixed(2)),
+                    parseFloat(computeSubscription.toFixed(2)),
+                    parseFloat((awsComputeTotal - computeSubscription).toFixed(2)),
+                    ((awsComputeTotal - computeSubscription) / awsComputeTotal * 100).toFixed(1) + '%'
+                ]);
+                summaryRows.push([
+                    'STORAGE',
+                    parseFloat(awsStorageTotal.toFixed(2)),
+                    parseFloat(storagePayg.toFixed(2)),
+                    parseFloat(storageSubscription.toFixed(2)),
+                    parseFloat((awsStorageTotal - storageSubscription).toFixed(2)),
+                    ((awsStorageTotal - storageSubscription) / awsStorageTotal * 100).toFixed(1) + '%'
+                ]);
+                summaryRows.push([]);
+                summaryRows.push([
+                    'GRAND TOTAL',
+                    parseFloat(quotationData.totalPricing.aws.total.toFixed(2)),
+                    parseFloat(quotationData.totalPricing.payg.total.toFixed(2)),
+                    parseFloat(quotationData.totalPricing.subscription.total.toFixed(2)),
+                    parseFloat((quotationData.totalPricing.aws.total - quotationData.totalPricing.subscription.total).toFixed(2)),
+                    ((quotationData.totalPricing.aws.total - quotationData.totalPricing.subscription.total) / quotationData.totalPricing.aws.total * 100).toFixed(1) + '%'
+                ]);
+                summaryRows.push([]);
+                summaryRows.push(['RECOMMENDATION: Huawei Cloud Subscription saves ' + ((quotationData.totalPricing.aws.total - quotationData.totalPricing.subscription.total) / quotationData.totalPricing.aws.total * 100).toFixed(1) + '% compared to AWS']);
+                summaryRows.push([]);
+                summaryRows.push(['INTERNAL HUAWEI SAVINGS']);
                 summaryRows.push(['Type', 'PAYG Monthly (USD)', 'Subscription Monthly (USD)', 'Savings (USD)', 'Savings (%)']);
                 summaryRows.push([
                     'COMPUTE',
@@ -1352,16 +1683,13 @@ app.get('/', (c) => {
                     parseFloat(storageSavings.toFixed(2)),
                     ((storageSavings / storagePayg) * 100).toFixed(1) + '%'
                 ]);
-                summaryRows.push([]);
                 summaryRows.push([
-                    'GRAND TOTAL',
+                    'TOTAL',
                     parseFloat(quotationData.totalPricing.payg.total.toFixed(2)),
                     parseFloat(quotationData.totalPricing.subscription.total.toFixed(2)),
                     parseFloat(totalSavings.toFixed(2)),
                     quotationData.totalPricing.subscription.discountPercentage + '%'
                 ]);
-                summaryRows.push([]);
-                summaryRows.push(['RECOMMENDED: Monthly Subscription model saves ' + quotationData.totalPricing.subscription.discountPercentage + '% compared to Pay-As-You-Go']);
 
                 // Create workbook with two sheets
                 const wb = XLSX.utils.book_new();
@@ -1388,9 +1716,10 @@ app.get('/', (c) => {
                 
                 ws2['!cols'] = [
                     {wch: 20}, // Type/Label
-                    {wch: 20}, // PAYG
-                    {wch: 25}, // Subscription
-                    {wch: 18}, // Savings
+                    {wch: 20}, // AWS Monthly
+                    {wch: 22}, // Huawei PAYG
+                    {wch: 25}, // Huawei Subscription
+                    {wch: 18}, // vs AWS Savings
                     {wch: 15}  // Savings %
                 ];
                 
